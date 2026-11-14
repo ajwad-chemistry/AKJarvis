@@ -18,9 +18,19 @@ sealed interface ParsedIntent {
     data object ReadNotifications : ParsedIntent
     data object OpenDownloads : ParsedIntent
     data object PickFile : ParsedIntent
+    data class Flashlight(val on: Boolean?) : ParsedIntent
+    data object BatteryStatus : ParsedIntent
+    data class Volume(val direction: VolumeDirection) : ParsedIntent
+    data class ShareText(val text: String) : ParsedIntent
+    data class CopyText(val text: String) : ParsedIntent
+    data class Remember(val fact: String) : ParsedIntent
+    data object RecallMemory : ParsedIntent
     data object Help : ParsedIntent
     data object None : ParsedIntent
 }
+
+/** Direction for volume commands parsed from speech. */
+enum class VolumeDirection { UP, DOWN, MUTE, UNMUTE }
 
 /**
  * Lightweight on-device command parser for English, Roman Urdu and Urdu.
@@ -41,6 +51,7 @@ class IntentRouter {
         parseSms(text)?.let { return it }
         parseDial(text)?.let { return it }
         parseOpen(text)?.let { return it }
+        parseDeviceTools(text)?.let { return it }
         parseSimple(text)?.let { return it }
         return ParsedIntent.None
     }
@@ -129,6 +140,62 @@ class IntentRouter {
         if (target.isBlank()) return null
         val settingsTarget = settingsKeyword(target) ?: return ParsedIntent.OpenApp(target)
         return ParsedIntent.OpenSettings(settingsTarget)
+    }
+
+    /**
+     * Permission-free hardware tools: flashlight, battery, volume, share, copy.
+     * Parsed before settings fallback so "battery status" reports the level
+     * instead of opening battery settings.
+     */
+    private fun parseDeviceTools(text: String): ParsedIntent? {
+        // Flashlight: "flashlight on", "torch band karo", "torch jalao"
+        if (Regex("\\b(flashlight|torch|flash light)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            val on = when {
+                Regex("\\b(off|band|bujhao|band karo)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> false
+                Regex("\\b(on|jalao|lagao|on karo|chalu)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> true
+                else -> null
+            }
+            return ParsedIntent.Flashlight(on)
+        }
+        // Battery: "battery status" / "battery kitni hai" (not "battery settings")
+        if (Regex("\\bbatte?ry\\b|\u0628\u06cc\u0679\u0631\u06cc", RegexOption.IGNORE_CASE).containsMatchIn(text) &&
+            !text.contains("settings") && !text.contains("setting") &&
+            Regex("\\b(status|level|percent|kitni|kaisi|check|charge|bach)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        ) {
+            return ParsedIntent.BatteryStatus
+        }
+        // Volume: "volume up", "awaz kam karo", "mute"
+        if (Regex("\\b(volume|awaz|aawaz|sound)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) ||
+            Regex("\\b(mute|unmute)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        ) {
+            val direction = when {
+                Regex("\\b(up|barhao|bara|zyada|max|full)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> VolumeDirection.UP
+                Regex("\\b(down|kam|less|low)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> VolumeDirection.DOWN
+                Regex("\\bunmute\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> VolumeDirection.UNMUTE
+                Regex("\\b(mute|silent|khamosh)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> VolumeDirection.MUTE
+                else -> null
+            } ?: return null
+            return ParsedIntent.Volume(direction)
+        }
+        // Share: "share <text>"
+        Regex("\\b(?:share)\\s+(.+)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val body = m.groupValues[1].trim().trim('.', '!', '?')
+            if (body.isNotBlank()) return ParsedIntent.ShareText(body)
+        }
+        // Copy: "copy <text>" (clipboard write; reading the clipboard is never done)
+        Regex("\\b(?:copy)\\s+(.+)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val body = m.groupValues[1].trim().trim('.', '!', '?')
+            if (body.isNotBlank()) return ParsedIntent.CopyText(body)
+        }
+        // Memory: "remember <fact>" / "yaad rakho <fact>"; bare "remember" asks for recall
+        Regex("\\b(?:remember|yaad rakho|yaad rakhna|یاد رکھو)\\b[:,]?(.*)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val body = m.groupValues[1].trim().trim('.', '!', '?')
+            return if (body.isBlank()) ParsedIntent.RecallMemory else ParsedIntent.Remember(body)
+        }
+        if (Regex("\\b(what do you remember|kya yaad hai|meri baatein)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.RecallMemory
+        }
+        return null
     }
 
     private fun parseSimple(text: String): ParsedIntent? {

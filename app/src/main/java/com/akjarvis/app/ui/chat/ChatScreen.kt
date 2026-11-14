@@ -48,6 +48,7 @@ import com.akjarvis.app.domain.model.AiMode
 import com.akjarvis.app.domain.model.AssistantState
 import com.akjarvis.app.ui.components.AssistantOrb
 import com.akjarvis.app.ui.components.MessageBubble
+import com.akjarvis.app.ui.components.TypingDots
 import com.akjarvis.app.ui.components.VoiceIndicator
 
 @Composable
@@ -96,6 +97,8 @@ fun ChatScreen(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            AssistantOrb(state = assistantState, size = 56.dp)
+            Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "AK JARVIS",
@@ -200,18 +203,7 @@ fun ChatScreen(
             }
             if (assistantState == AssistantState.THINKING) {
                 item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.width(18.dp).height(18.dp),
-                            strokeWidth = 2.dp,
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Thinking…",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    TypingDots(modifier = Modifier.padding(start = 4.dp))
                 }
             }
         }

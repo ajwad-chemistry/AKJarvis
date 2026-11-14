@@ -8,6 +8,7 @@ import com.akjarvis.app.ai.OfflineEngine
 import com.akjarvis.app.data.db.AssistantDatabase
 import com.akjarvis.app.data.prefs.SettingsRepository
 import com.akjarvis.app.data.repo.ChatRepository
+import com.akjarvis.app.data.repo.MemoryRepository
 import com.akjarvis.app.data.repo.NotesRepository
 import com.akjarvis.app.data.repo.RemindersRepository
 import com.akjarvis.app.device.AppLauncher
@@ -29,7 +30,12 @@ object ServiceLocator {
     val chatRepository by lazy { ChatRepository(database.chatDao()) }
     val notesRepository by lazy { NotesRepository(database) }
     val remindersRepository by lazy { RemindersRepository(database.reminderDao(), reminderScheduler) }
-    val cloudEngine by lazy { CloudEngine { settingsRepository.settings.first() } }
+    val cloudEngine by lazy {
+        CloudEngine(
+            settingsProvider = { settingsRepository.settings.first() },
+            memoryProvider = { memoryRepository.facts.first() },
+        )
+    }
     val offlineEngine by lazy { OfflineEngine(appContext) }
     val aiRouter by lazy { AiRouter(settingsRepository, cloudEngine, offlineEngine) }
     val intentRouter by lazy { IntentRouter() }
@@ -37,8 +43,9 @@ object ServiceLocator {
     val reminderScheduler by lazy { ReminderScheduler(appContext) }
     val ttsManager by lazy { TtsManager(appContext) }
     val actionExecutor by lazy {
-        DeviceActionExecutor(appContext, appLauncher, remindersRepository, notesRepository)
+        DeviceActionExecutor(appContext, appLauncher, remindersRepository, notesRepository, memoryRepository)
     }
+    val memoryRepository by lazy { MemoryRepository(appContext) }
 
     fun init(app: Application) {
         appContext = app.applicationContext

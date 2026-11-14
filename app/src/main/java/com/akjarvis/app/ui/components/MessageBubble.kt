@@ -1,8 +1,8 @@
 package com.akjarvis.app.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +16,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.akjarvis.app.domain.model.AiMode
 import com.akjarvis.app.domain.model.ChatMessage
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MessageBubble(message: ChatMessage) {
@@ -44,17 +47,29 @@ fun MessageBubble(message: ChatMessage) {
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
-        if (!isUser && message.mode != null) {
+        Row(
+            modifier = Modifier.padding(top = 2.dp, start = 6.dp, end = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (!isUser && message.mode != null) {
+                Text(
+                    text = when (message.mode) {
+                        AiMode.CLOUD -> "☁ cloud"
+                        AiMode.FALLBACK -> "⚡ offline"
+                        null -> ""
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
-                text = when (message.mode) {
-                    AiMode.CLOUD -> "☁ cloud"
-                    AiMode.FALLBACK -> "⚡ offline"
-                    null -> ""
-                },
+                text = formatTime(message.timestamp),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp, start = 6.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
             )
         }
     }
 }
+
+private fun formatTime(epochMillis: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochMillis))

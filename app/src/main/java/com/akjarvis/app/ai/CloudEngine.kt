@@ -21,6 +21,15 @@ interface ChatApi {
     ): ChatResponse
 }
 
+interface AnthropicApi {
+    @POST("messages")
+    suspend fun messages(
+        @Header("x-api-key") apiKey: String,
+        @Header("anthropic-version") version: String,
+        @Body body: AnthropicRequest,
+    ): AnthropicResponse
+}
+
 /**
  * Cloud AI engine for any OpenAI-compatible chat completion API.
  * Defaults are tuned for Z.ai (GLM): base URL https://api.z.ai/api/paas/v4/
@@ -29,6 +38,7 @@ interface ChatApi {
  */
 class CloudEngine(
     private val settingsProvider: suspend () -> AppSettings,
+    private val memoryProvider: suspend () -> List<String> = { emptyList() },
 ) : AiEngine {
 
     private val json = Json {
@@ -47,25 +57,48 @@ class CloudEngine(
     @Volatile
     private var cachedApi: Pair<String, ChatApi>? = null
 
+    @Volatile
+    private var cachedAnthropicApi: Pair<String, AnthropicApi>? = null
+
     private suspend fun apiFor(baseUrl: String): ChatApi {
         val normalized = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         cachedApi?.let { (url, api) -> if (url == normalized) return api }
-        val api = Retrofit.Builder()
-            .baseUrl(normalized)
-            .client(okHttpClient)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
-            .create(ChatApi::class.java)
+        val api = retrofitFor(normalized).create(ChatApi::class.java)
         cachedApi = normalized to api
         return api
     }
 
+    private suspend fun anthropicApiFor(baseUrl: String): AnthropicApi {
+        val normalized = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        cachedAnthropicApi?.let { (url, api) -> if (url == normalized) return api }
+        val api = retrofitFor(normalized).create(AnthropicApi::class.java)
+        cachedAnthropicApi = normalized to api
+        return api
+    }
+
+    private fun retrofitFor(normalizedBaseUrl: String): Retrofit =
+        Retrofit.Builder()
+            .baseUrl(normalizedBaseUrl)
+            .client(okHttpClient)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+
     override suspend fun respond(history: List<ChatTurn>, userText: String): String {
         val settings = settingsProvider()
         require(settings.apiKey.isNotBlank()) { "No API key configured" }
+        return when (settings.provider.kind) {
+            ProviderKind.ANTHROPIC -> respondAnthropic(settings, history, userText)
+            ProviderKind.OPENAI_COMPATIBLE -> respondOpenAiCompatible(settings, history, userText)
+        }
+    }
 
+    private suspend fun respondOpenAiCompatible(
+        settings: AppSettings,
+        history: List<ChatTurn>,
+        userText: String,
+    ): String {
         val messages = buildList {
-            add(ApiMessage(role = "system", content = SystemPromptBuilder.build(settings)))
+            add(ApiMessage(role = "system", content = SystemPromptBuilder.build(settings, memoryProvider())))
             history.forEach { add(ApiMessage(role = it.role, content = it.content)) }
             add(ApiMessage(role = "user", content = userText))
         }
@@ -95,6 +128,49 @@ class CloudEngine(
         }
     }
 
+    private suspend fun respondAnthropic(
+        settings: AppSettings,
+        history: List<ChatTurn>,
+        userText: String,
+    ): String {
+        val messages = buildList {
+            history.forEach { add(ApiMessage(role = it.role, content = it.content)) }
+            add(ApiMessage(role = "user", content = userText))
+        }
+        val request = AnthropicRequest(
+            model = settings.model,
+            system = SystemPromptBuilder.build(settings, memoryProvider()),
+            messages = messages,
+        )
+        val response = try {
+            anthropicApiFor(settings.apiBaseUrl).messages(
+                settings.apiKey,
+                "2023-06-01",
+                request,
+            )
+        } catch (e: HttpException) {
+            val bodyText = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
+            val apiMessage = runCatching {
+                json.decodeFromString(ApiErrorResponse.serializer(), bodyText).error?.message
+            }.getOrNull()
+            throw CloudException(
+                apiMessage ?: "Claude API error (HTTP ${e.code()})",
+                e.code(),
+            )
+        } catch (e: Exception) {
+            if (e is CloudException) throw e
+            throw CloudException("Cannot reach Claude: ${e.message ?: e.javaClass.simpleName}", null)
+        }
+
+        response.error?.message?.let { throw CloudException(it, null) }
+        val text = response.content
+            .filter { it.type == "text" }
+            .mapNotNull { it.text }
+            .joinToString("\n")
+            .trim()
+        return text.ifBlank { throw CloudException("Claude returned an empty response", null) }
+    }
+
     /** Some GLM thinking modes wrap reasoning in <think> tags; show only the final answer. */
     private fun stripThinking(text: String): String =
         text.replace(Regex("(?s)<think>.*?</think>"), "").trim()
@@ -107,7 +183,7 @@ object SystemPromptBuilder {
      * Builds the system prompt from the user's personality settings.
      * Keeps replies compact because they are also spoken aloud.
      */
-    fun build(settings: AppSettings): String {
+    fun build(settings: AppSettings, memory: List<String> = emptyList()): String {
         val style = when (settings.personalityStyle) {
             com.akjarvis.app.domain.model.PersonalityStyle.PROFESSIONAL ->
                 "Be precise, formal and efficient, like a professional assistant."
@@ -133,6 +209,11 @@ object SystemPromptBuilder {
             append("Never ask for passwords, OTPs or other secrets.")
             if (settings.customInstructions.isNotBlank()) {
                 append(" Additional user instructions: ").append(settings.customInstructions)
+            }
+            if (memory.isNotEmpty()) {
+                append(" Things you remember about the user (told to you explicitly): ")
+                append(memory.joinToString("; "))
+                append('.')
             }
         }
     }

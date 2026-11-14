@@ -18,22 +18,31 @@ class TtsManager(private val context: Context) {
     private var ready: Boolean = false
 
     private var pending: String? = null
+    private var pendingOnDone: (() -> Unit)? = null
 
-    fun speak(text: String, language: LanguageMode) {
-        if (text.isBlank()) return
+    fun speak(text: String, language: LanguageMode, onDone: (() -> Unit)? = null) {
+        if (text.isBlank()) {
+            onDone?.invoke()
+            return
+        }
         val engine = tts
         if (engine != null && ready) {
-            speakNow(engine, text, language)
+            speakNow(engine, text, language, onDone)
             return
         }
         pending = text
-        if (engine != null) return
+        if (engine != null) {
+            pendingOnDone = onDone
+            return
+        }
+        pendingOnDone = onDone
         tts = TextToSpeech(context) { status ->
             ready = status == TextToSpeech.SUCCESS
             if (ready) {
                 pending?.let {
-                    speakNow(tts ?: return@TextToSpeech, it, language)
+                    speakNow(tts ?: return@TextToSpeech, it, language, pendingOnDone)
                     pending = null
+                    pendingOnDone = null
                 }
             }
         }
@@ -49,7 +58,7 @@ class TtsManager(private val context: Context) {
         ready = false
     }
 
-    private fun speakNow(engine: TextToSpeech, text: String, language: LanguageMode) {
+    private fun speakNow(engine: TextToSpeech, text: String, language: LanguageMode, onDone: (() -> Unit)? = null) {
         val locale = when (language) {
             LanguageMode.URDU -> Locale("ur", "PK")
             LanguageMode.ROMAN_URDU -> Locale("en", "IN")
@@ -60,7 +69,18 @@ class TtsManager(private val context: Context) {
             // Urdu voices are missing on many devices; fall back to English.
             engine.setLanguage(Locale.US)
         }
-        engine.setSpeechRate(1.0f)
-        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, "ak_jarvis_${System.currentTimeMillis()}")
+        val utteranceId = "ak_jarvis_${System.currentTimeMillis()}"
+        if (onDone != null) {
+            engine.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(id: String?) {
+                    if (id == utteranceId) onDone()
+                }
+                override fun onError(id: String?) {
+                    if (id == utteranceId) onDone()
+                }
+            })
+        }
+        engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
     }
 }

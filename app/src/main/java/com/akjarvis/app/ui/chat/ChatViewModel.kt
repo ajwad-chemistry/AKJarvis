@@ -7,6 +7,7 @@ import com.akjarvis.app.ai.AiRouter
 import com.akjarvis.app.data.prefs.AppSettings
 import com.akjarvis.app.data.prefs.SettingsRepository
 import com.akjarvis.app.data.repo.ChatRepository
+import com.akjarvis.app.data.repo.MemoryRepository
 import com.akjarvis.app.device.DeviceActionExecutor
 import com.akjarvis.app.di.ServiceLocator
 import com.akjarvis.app.domain.IntentRouter
@@ -24,6 +25,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 
 /**
  * Orchestrates a chat turn: save the user message, run device commands locally,
@@ -39,6 +42,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val executor: DeviceActionExecutor = ServiceLocator.actionExecutor
     private val tts: TtsManager = ServiceLocator.ttsManager
     private val speech = SpeechInputManager(app)
+    private val memoryRepository: MemoryRepository = ServiceLocator.memoryRepository
+
+    /** True while the current turn was started by voice (enables the follow-up window). */
+    private var turnWasVoice = false
 
     val messages: StateFlow<List<com.akjarvis.app.domain.model.ChatMessage>> =
         chatRepository.observeMessages()
@@ -77,6 +84,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val language = settings.value.language
         _assistantState.value = AssistantState.LISTENING
         speech.startListening(language) { recognized ->
+            turnWasVoice = true
             viewModelScope.launch { handleUserText(recognized) }
         }
     }
@@ -113,6 +121,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _error.value = null
         chatRepository.add(text, isFromUser = true)
         _assistantState.value = AssistantState.THINKING
+        val startedByVoice = turnWasVoice
+        turnWasVoice = false
         try {
             val language = IntentRouter.detectLanguage(text)
             val parsed = intentRouter.parse(text)
@@ -126,11 +136,39 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 _assistantState.value = AssistantState.SPEAKING
                 val speakLanguage = if (mode == AiMode.CLOUD) currentSettings.language else language
                 tts.speak(reply, speakLanguage)
+                if (startedByVoice && currentSettings.handsFree) {
+                    openFollowUpWindow()
+                }
             }
         } catch (e: Exception) {
             _error.value = e.message ?: "Something went wrong."
         } finally {
             _assistantState.value = AssistantState.IDLE
+        }
+    }
+
+    /**
+     * Hands-free follow-up window: after the assistant finishes speaking, keep
+     * the microphone open briefly so the user can reply without repeating the
+     * wake word (inspired by the AbuZar Jarvis continuous-listening design).
+     * The mic is only open for this short window; nothing is recorded to disk.
+     */
+    private suspend fun openFollowUpWindow() {
+        kotlinx.coroutines.delay(400)
+        _assistantState.value = AssistantState.LISTENING
+        val followUp = withTimeoutOrNull(7_500L) {
+            kotlinx.coroutines.suspendCancellableCoroutine { cont ->
+                speech.startListening(settings.value.language) { recognized ->
+                    turnWasVoice = true
+                    cont.resume(recognized)
+                }
+            }
+        }
+        if (followUp.isNullOrBlank()) {
+            speech.stopListening()
+            _assistantState.value = AssistantState.IDLE
+        } else {
+            handleUserText(followUp)
         }
     }
 

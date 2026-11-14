@@ -11,3 +11,4 @@ captures/
 *.keystore
 !debug.keystore
 !releases/*.apk
+.kotlin/

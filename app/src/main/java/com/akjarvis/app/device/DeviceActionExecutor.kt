@@ -4,10 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import com.akjarvis.app.data.repo.MemoryRepository
 import com.akjarvis.app.data.repo.NotesRepository
 import com.akjarvis.app.data.repo.RemindersRepository
+import kotlinx.coroutines.flow.first
 import com.akjarvis.app.domain.IntentRouter
 import com.akjarvis.app.domain.ParsedIntent
+import com.akjarvis.app.domain.VolumeDirection
 import com.akjarvis.app.domain.model.InstalledApp
 import com.akjarvis.app.domain.model.LanguageMode
 
@@ -23,6 +26,7 @@ class DeviceActionExecutor(
     private val appLauncher: AppLauncher,
     private val remindersRepository: RemindersRepository,
     private val notesRepository: NotesRepository,
+    private val memoryRepository: MemoryRepository? = null,
 ) {
     /** Hook the UI sets to open the system file picker on demand. */
     var onPickFileRequested: (() -> Unit)? = null
@@ -76,6 +80,53 @@ class DeviceActionExecutor(
         ParsedIntent.PickFile -> {
             onPickFileRequested?.invoke()
             PhraseBook.pickFile(language)
+        }
+        is ParsedIntent.Flashlight -> {
+            val changed = DeviceTools.setTorch(context, intent.on)
+            if (changed) PhraseBook.torchSet(intent.on, language) else PhraseBook.torchUnavailable(language)
+        }
+        ParsedIntent.BatteryStatus -> {
+            val info = DeviceTools.readBattery(context)
+            if (info != null) PhraseBook.batteryStatus(info.percent, info.charging, language)
+            else PhraseBook.batteryUnavailable(language)
+        }
+        is ParsedIntent.Volume -> {
+            DeviceTools.changeVolume(
+                context,
+                when (intent.direction) {
+                    VolumeDirection.UP -> DeviceTools.VolumeAction.UP
+                    VolumeDirection.DOWN -> DeviceTools.VolumeAction.DOWN
+                    VolumeDirection.MUTE -> DeviceTools.VolumeAction.MUTE
+                    VolumeDirection.UNMUTE -> DeviceTools.VolumeAction.UNMUTE
+                },
+            )
+            val percent = DeviceTools.currentVolumePercent(context)
+            PhraseBook.volumeSet(intent.direction, percent, language)
+        }
+        is ParsedIntent.ShareText -> {
+            val ok = DeviceTools.shareText(context, intent.text)
+            if (ok) PhraseBook.shareOpened(language) else null
+        }
+        is ParsedIntent.CopyText -> {
+            val ok = DeviceTools.copyToClipboard(context, intent.text)
+            if (ok) PhraseBook.copied(language) else null
+        }
+        is ParsedIntent.Remember -> {
+            val repo = memoryRepository
+            if (repo == null) null
+            else {
+                repo.add(intent.fact)
+                PhraseBook.remembered(language)
+            }
+        }
+        ParsedIntent.RecallMemory -> {
+            val repo = memoryRepository
+            if (repo == null) null
+            else {
+                val facts = repo.facts.first()
+                if (facts.isEmpty()) PhraseBook.memoryEmpty(language)
+                else PhraseBook.memoryList(facts, language)
+            }
         }
         ParsedIntent.Help -> PhraseBook.help(language)
         ParsedIntent.None -> null
@@ -202,8 +253,92 @@ object PhraseBook {
     }
 
     fun help(lang: LanguageMode) = when (lang) {
-        LanguageMode.URDU -> "میں ایپ کھول سکتا ہوں، سیٹنگز، یاد دہانیاں، نوٹس، ویب سرچ اور نوٹیفکیشن پڑھ سکتا ہوں۔"
-        LanguageMode.ROMAN_URDU -> "Main app khol sakta hoon, settings, reminders, notes, web search aur notifications parh sakta hoon."
-        LanguageMode.ENGLISH -> "I can open apps, change settings, set reminders, save notes, search the web and read your notifications."
+        LanguageMode.URDU -> "میں ایپ کھول سکتا ہوں، سیٹنگز، یاد دہانیاں، نوٹس، ویب سرچ، ٹرچ، والیوم، بیٹری اور نوٹیفکیشن پڑھ سکتا ہوں۔"
+        LanguageMode.ROMAN_URDU -> "Main app khol sakta hoon, settings, reminders, notes, web search, torch, volume, battery check aur notifications parh sakta hoon."
+        LanguageMode.ENGLISH -> "I can open apps, change settings, set reminders, save notes, search the web, control the torch and volume, check battery and read notifications."
+    }
+
+    fun torchSet(on: Boolean?, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> if (on != false) "ٹرچ آن کر دی۔" else "ٹرچ بند کر دی۔"
+        LanguageMode.ROMAN_URDU -> if (on != false) "Torch on kar di." else "Torch band kar di."
+        LanguageMode.ENGLISH -> if (on != false) "Torch is on." else "Torch is off."
+    }
+
+    fun torchUnavailable(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "اس ڈیوائس پر ٹرچ کنٹرول ممکن نہیں۔"
+        LanguageMode.ROMAN_URDU -> "Is device par torch control mumkin nahi."
+        LanguageMode.ENGLISH -> "This device has no controllable torch."
+    }
+
+    fun batteryStatus(percent: Int, charging: Boolean, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "بیٹری $percent فیصد ہے${if (charging) "، چارج ہو رہی ہے" else ""}۔"
+        LanguageMode.ROMAN_URDU -> "Battery $percent% hai${if (charging) ", charging ho rahi hai" else ""}."
+        LanguageMode.ENGLISH -> "Battery is at $percent%${if (charging) " and charging" else ""}."
+    }
+
+    fun batteryUnavailable(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "بیٹری کی حالت معلوم نہیں ہو سکی۔"
+        LanguageMode.ROMAN_URDU -> "Battery ki halat maloom nahi ho saki."
+        LanguageMode.ENGLISH -> "I couldn't read the battery state."
+    }
+
+    fun volumeSet(direction: VolumeDirection, percent: Int?, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> {
+            val action = when (direction) {
+                VolumeDirection.UP -> "والیوم بڑھا"
+                VolumeDirection.DOWN -> "والیوم کم"
+                VolumeDirection.MUTE -> "میوٹ"
+                VolumeDirection.UNMUTE -> "ان میوٹ"
+            }
+            if (percent != null) "$action دیا۔ اب $percent فیصد ہے۔" else "$action دیا۔"
+        }
+        LanguageMode.ROMAN_URDU -> {
+            val action = when (direction) {
+                VolumeDirection.UP -> "Volume barha"
+                VolumeDirection.DOWN -> "Volume kam"
+                VolumeDirection.MUTE -> "Mute"
+                VolumeDirection.UNMUTE -> "Unmute"
+            }
+            if (percent != null) "$action diya. Ab $percent% hai." else "$action diya."
+        }
+        LanguageMode.ENGLISH -> {
+            val action = when (direction) {
+                VolumeDirection.UP -> "Volume raised"
+                VolumeDirection.DOWN -> "Volume lowered"
+                VolumeDirection.MUTE -> "Muted"
+                VolumeDirection.UNMUTE -> "Unmuted"
+            }
+            if (percent != null) "$action. Now at $percent%." else "$action."
+        }
+    }
+
+    fun shareOpened(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "شیئر مینو کھول دیا۔"
+        LanguageMode.ROMAN_URDU -> "Share menu khol diya."
+        LanguageMode.ENGLISH -> "Share menu opened."
+    }
+
+    fun copied(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "کلپ بورڈ پر کاپی کر لیا۔"
+        LanguageMode.ROMAN_URDU -> "Clipboard par copy kar liya."
+        LanguageMode.ENGLISH -> "Copied to clipboard."
+    }
+
+    fun remembered(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "یاد رکھ لیا۔"
+        LanguageMode.ROMAN_URDU -> "Yaad rakh liya."
+        LanguageMode.ENGLISH -> "Noted — I'll remember that."
+    }
+
+    fun memoryEmpty(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "ابھی مجھے کچھ یاد نہیں کرنا پڑا۔"
+        LanguageMode.ROMAN_URDU -> "Abhi mujhe kuch yaad karwaya nahi gaya."
+        LanguageMode.ENGLISH -> "I don't have anything in memory yet. Say \"remember…\" to store a fact."
+    }
+
+    fun memoryList(facts: List<String>, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> facts.joinToString("\n") { "• $it" }
+        LanguageMode.ROMAN_URDU -> facts.joinToString("\n") { "• $it" }
+        LanguageMode.ENGLISH -> facts.joinToString("\n") { "• $it" }
     }
 }

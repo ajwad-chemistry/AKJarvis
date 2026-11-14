@@ -6,7 +6,7 @@ A native Android AI assistant with a hybrid **Cloud + Local/Offline** architectu
 |---|---|
 | **Platform** | Android 8.0+ (API 26), optimized for 6 GB RAM devices |
 | **Language** | Kotlin 2.0, Jetpack Compose (Material 3) |
-| **AI** | Cloud: any OpenAI-compatible API (default: Z.ai GLM, free-tier `glm-4.5-flash`) · Offline: rule-based engine that keeps device commands working with zero network |
+| **AI** | Cloud: Gemini, Claude (Anthropic), Groq, OpenRouter, Z.ai GLM, or any custom OpenAI-compatible endpoint · Offline: rule-based engine that keeps device commands working with zero network |
 | **Voice** | Android `SpeechRecognizer` (input) + `TextToSpeech` (output) |
 | **Languages** | English, Urdu (اردو), Roman Urdu |
 | **Storage** | Room database + DataStore — all data stays on the device |
@@ -26,6 +26,9 @@ A native Android AI assistant with a hybrid **Cloud + Local/Offline** architectu
 - 📁 **File access** only through the system file picker (Storage Access Framework)
 - 🎭 **Customizable personality** — name, style (professional / friendly / funny), custom instructions
 - 🌗 **Dark & light themes** (plus system default)
+- 🔦 **Device tools by voice** — flashlight, volume up/down/mute, battery status, share, copy to clipboard
+- 🧠 **Assistant memory** — say "remember…" / "yaad rakho…" and facts are stored on-device and injected into AI replies (view/clear in Settings)
+- 🎙 **Hands-free follow-up** — after a spoken reply the mic stays open for 7 seconds so you can continue naturally
 - 🛡 **Privacy-first**: no analytics, no tracking, API key stays on-device and out of backups
 
 ## Architecture
@@ -81,10 +84,20 @@ Or from the command line — see [docs/BUILDING.md](docs/BUILDING.md).
 
 ## Configure the AI
 
-1. Get a free API key from [Z.ai](https://z.ai) (model `glm-4.5-flash` is free-tier) or use any OpenAI-compatible provider.
-2. Open **AK Jarvis → Settings → Cloud AI configuration**.
-3. Paste the key, adjust base URL / model if needed.
-4. Done — the app calls `{base-url}chat/completions` with your key in the `Authorization` header.
+1. Open **AK Jarvis → Settings → AI provider** and pick one:
+
+   | Provider | Default base URL | Default model | Cost |
+   |---|---|---|---|
+   | Z.ai (GLM) | `https://api.z.ai/api/paas/v4/` | `glm-4.5-flash` | Free tier |
+   | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.0-flash` | Free tier (AI Studio key) |
+   | Groq | `https://api.groq.com/openai/v1/` | `llama-3.3-70b-versatile` | Free tier |
+   | OpenRouter | `https://openrouter.ai/api/v1/` | `meta-llama/llama-3.3-70b-instruct:free` | `:free` models are free |
+   | Claude (Anthropic) | `https://api.anthropic.com/v1/` | `claude-3-5-haiku-latest` | Paid API |
+   | Custom | your endpoint | your model | Any OpenAI-compatible API |
+
+2. Get a key from that provider's console, paste it in **Cloud AI configuration**.
+3. Base URL and model are pre-filled per provider but always editable (model IDs change over time — update them here without reinstalling).
+4. Done — OpenAI-compatible providers use `{base-url}chat/completions`; Claude uses the native `messages` API.
 
 Without a key the app stays fully usable in **Offline Mode** (device commands + basic conversation).
 

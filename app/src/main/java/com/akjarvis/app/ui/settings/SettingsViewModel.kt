@@ -3,9 +3,11 @@ package com.akjarvis.app.ui.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.akjarvis.app.ai.AiProvider
 import com.akjarvis.app.data.prefs.AppSettings
 import com.akjarvis.app.data.prefs.SettingsRepository
 import com.akjarvis.app.data.repo.ChatRepository
+import com.akjarvis.app.data.repo.MemoryRepository
 import com.akjarvis.app.di.ServiceLocator
 import com.akjarvis.app.domain.model.AiMode
 import com.akjarvis.app.domain.model.LanguageMode
@@ -20,11 +22,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     private val repository: SettingsRepository = ServiceLocator.settingsRepository
     private val chatRepository: ChatRepository = ServiceLocator.chatRepository
+    private val memoryRepository: MemoryRepository = ServiceLocator.memoryRepository
 
     val settings: StateFlow<AppSettings> =
         repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 
     fun setAiMode(mode: AiMode) = launch { repository.setAiMode(mode) }
+    fun setProvider(provider: AiProvider) = launch { repository.setProvider(provider) }
     fun setApiKey(key: String) = launch { repository.setApiKey(key) }
     fun setApiBaseUrl(url: String) = launch { repository.setApiBaseUrl(url) }
     fun setModel(model: String) = launch { repository.setModel(model) }
@@ -34,10 +38,12 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setAssistantName(name: String) = launch { repository.setAssistantName(name) }
     fun setCustomInstructions(text: String) = launch { repository.setCustomInstructions(text) }
     fun setSpeakReplies(enabled: Boolean) = launch { repository.setSpeakReplies(enabled) }
+    fun setHandsFree(enabled: Boolean) = launch { repository.setHandsFree(enabled) }
     fun setWakeWordEnabled(enabled: Boolean) = launch { repository.setWakeWordEnabled(enabled) }
     fun setWakePhrase(phrase: String) = launch { repository.setWakePhrase(phrase) }
 
     fun clearChat() = launch { chatRepository.clear() }
+    fun clearMemory() = launch { memoryRepository.clear() }
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

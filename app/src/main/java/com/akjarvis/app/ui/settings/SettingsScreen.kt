@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.akjarvis.app.ai.AiProvider
 import com.akjarvis.app.data.prefs.AppSettings
 import com.akjarvis.app.domain.model.AiMode
 import com.akjarvis.app.domain.model.LanguageMode
@@ -89,7 +90,19 @@ fun SettingsScreen(
             )
         }
         Text(
-            text = "Cloud AI uses any OpenAI-compatible API. Default: Z.ai GLM (glm-4.5-flash is a free-tier model). If the cloud fails, the assistant automatically falls back to offline mode.",
+            text = "Cloud AI uses your chosen provider's API. If the cloud fails, the assistant automatically falls back to offline mode.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+
+        SectionTitle("AI provider")
+        ProviderChips(
+            selected = settings.provider,
+            onSelect = viewModel::setProvider,
+        )
+        Text(
+            text = settings.provider.freeTierNote,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 6.dp),
@@ -171,6 +184,12 @@ fun SettingsScreen(
             onCheckedChange = viewModel::setSpeakReplies,
         )
         SettingSwitch(
+            title = "Hands-free follow-up",
+            subtitle = "After a spoken reply, keeps the mic open for 7 seconds so you can answer without tapping. Microphone is active only in that window.",
+            checked = settings.handsFree,
+            onCheckedChange = viewModel::setHandsFree,
+        )
+        SettingSwitch(
             title = "Wake word detection",
             subtitle = "Listens in the background for your wake phrase. Uses more battery.",
             checked = settings.wakeWordEnabled,
@@ -198,15 +217,36 @@ fun SettingsScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onOpenPermissions) { Text("Permissions") }
             OutlinedButton(onClick = viewModel::clearChat) { Text("Clear chat history") }
+            OutlinedButton(onClick = viewModel::clearMemory) { Text("Clear memory") }
         }
 
         SectionTitle("About")
         Text(
-            text = "AK Jarvis v1.0.0 — hybrid AI assistant (cloud GLM + offline mode). Your API key stays on this device and is never included in backups. The app never records audio silently, never reads your passwords or OTPs, and never sends messages or calls without your confirmation.",
+            text = "AK Jarvis v1.1.0 — hybrid AI assistant (Gemini / Claude / Groq / OpenRouter / Z.ai / custom + offline mode). Your API key stays on this device and is never included in backups. The app never records audio silently, never reads your passwords or OTPs, and never sends messages or calls without your confirmation.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.padding(bottom = 24.dp))
+    }
+}
+
+@Composable
+private fun ProviderChips(
+    selected: AiProvider,
+    onSelect: (AiProvider) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        AiProvider.entries.chunked(3).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { provider ->
+                    FilterChip(
+                        selected = selected == provider,
+                        onClick = { onSelect(provider) },
+                        label = { Text(provider.displayName) },
+                    )
+                }
+            }
+        }
     }
 }
 
