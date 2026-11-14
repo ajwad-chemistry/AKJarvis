@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">AK Jarvis</string>
+    <string name="tagline">Your personal AI assistant</string>
+    <string name="chat_hint">Ask me anything…</string>
+    <string name="listening">Listening…</string>
+    <string name="thinking">Thinking…</string>
+    <string name="speaking">Speaking…</string>
+    <string name="mic_button">Tap to speak</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_tasks">Tasks</string>
+    <string name="nav_settings">Settings</string>
+    <string name="mode_cloud">Cloud AI</string>
+    <string name="mode_fallback">Offline Mode</string>
+    <string name="settings_api_key">API key</string>
+    <string name="settings_api_url">API base URL</string>
+    <string name="settings_model">Model</string>
+    <string name="settings_personality">Assistant personality</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_tts">Speak replies aloud</string>
+    <string name="settings_wake_word">Wake word detection</string>
+    <string name="settings_wake_phrase">Wake phrase</string>
+    <string name="settings_permissions">Permissions</string>
+    <string name="settings_clear_chat">Clear chat history</string>
+    <string name="perm_microphone">Microphone (voice input)</string>
+    <string name="perm_notifications">Notifications (reminders)</string>
+    <string name="perm_exact_alarms">Exact alarms (reliable reminders)</string>
+    <string name="perm_notif_listener">Notification access (read notifications)</string>
+    <string name="perm_notif_listener_hint">Optional. Only used when you ask me to read notifications. Disable any time from system settings.</string>
+    <string name="notes_title">Notes</string>
+    <string name="reminders_title">Reminders</string>
+    <string name="add_note">New note</string>
+    <string name="add_reminder">New reminder</string>
+    <string name="tasks_title">Notes &amp; Tasks</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_no_api_key">No API key set. Add one in Settings → Cloud AI, or switch to Offline Mode.</string>
+</resources>

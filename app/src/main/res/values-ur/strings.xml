@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">اے کے جاروس</string>
+    <string name="tagline">آپ کا ذاتی اے آئی اسسٹنٹ</string>
+    <string name="chat_hint">کچھ بھی پوچھیں…</string>
+    <string name="listening">سن رہا ہوں…</string>
+    <string name="thinking">سوچ رہا ہوں…</string>
+    <string name="nav_chat">چیٹ</string>
+    <string name="nav_tasks">ٹاسک</string>
+    <string name="nav_settings">سیٹنگز</string>
+    <string name="mode_cloud">کلاؤڈ اے آئی</string>
+    <string name="mode_fallback">آف لائن موڈ</string>
+    <string name="error_generic">کچھ غلط ہو گیا۔ دوبارہ کوشش کریں۔</string>
+</resources>

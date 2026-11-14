@@ -1,0 +1,45 @@
+package com.akjarvis.app.ui.settings
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.akjarvis.app.data.prefs.AppSettings
+import com.akjarvis.app.data.prefs.SettingsRepository
+import com.akjarvis.app.data.repo.ChatRepository
+import com.akjarvis.app.di.ServiceLocator
+import com.akjarvis.app.domain.model.AiMode
+import com.akjarvis.app.domain.model.LanguageMode
+import com.akjarvis.app.domain.model.PersonalityStyle
+import com.akjarvis.app.domain.model.ThemeMode
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+class SettingsViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val repository: SettingsRepository = ServiceLocator.settingsRepository
+    private val chatRepository: ChatRepository = ServiceLocator.chatRepository
+
+    val settings: StateFlow<AppSettings> =
+        repository.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
+
+    fun setAiMode(mode: AiMode) = launch { repository.setAiMode(mode) }
+    fun setApiKey(key: String) = launch { repository.setApiKey(key) }
+    fun setApiBaseUrl(url: String) = launch { repository.setApiBaseUrl(url) }
+    fun setModel(model: String) = launch { repository.setModel(model) }
+    fun setTheme(theme: ThemeMode) = launch { repository.setTheme(theme) }
+    fun setLanguage(language: LanguageMode) = launch { repository.setLanguage(language) }
+    fun setPersonalityStyle(style: PersonalityStyle) = launch { repository.setPersonalityStyle(style) }
+    fun setAssistantName(name: String) = launch { repository.setAssistantName(name) }
+    fun setCustomInstructions(text: String) = launch { repository.setCustomInstructions(text) }
+    fun setSpeakReplies(enabled: Boolean) = launch { repository.setSpeakReplies(enabled) }
+    fun setWakeWordEnabled(enabled: Boolean) = launch { repository.setWakeWordEnabled(enabled) }
+    fun setWakePhrase(phrase: String) = launch { repository.setWakePhrase(phrase) }
+
+    fun clearChat() = launch { chatRepository.clear() }
+
+    private fun launch(block: suspend () -> Unit) {
+        viewModelScope.launch { block() }
+    }
+}
