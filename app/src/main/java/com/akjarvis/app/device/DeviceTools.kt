@@ -113,6 +113,41 @@ object DeviceTools {
         true
     }.getOrDefault(false)
 
+    // ---- Contacts (READ_CONTACTS required, checked by the caller) ----------
+
+    fun hasContactsAccess(context: Context): Boolean =
+        context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    /** Looks up a phone number by (partial) contact name; returns "name|number" or null. */
+    fun findContactNumber(context: Context, name: String): Pair<String, String>? {
+        if (!hasContactsAccess(context) || name.isBlank()) return null
+        return runCatching {
+            val cursor = context.contentResolver.query(
+                android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(
+                    android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ),
+                null,
+                null,
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC",
+            )
+            cursor?.use { c ->
+                val nameIdx = c.getColumnIndex(android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numIdx = c.getColumnIndex(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER)
+                while (c.moveToNext()) {
+                    val contactName = c.getString(nameIdx) ?: continue
+                    if (contactName.contains(name, ignoreCase = true)) {
+                        val number = c.getString(numIdx) ?: continue
+                        return contactName to number
+                    }
+                }
+            }
+            null
+        }.getOrNull()
+    }
+
     // ---- Haptic feedback (used to confirm voice commands) ------------------
 
     fun buzz(context: Context, millis: Long = 40L) {

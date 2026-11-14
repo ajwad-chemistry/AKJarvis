@@ -70,14 +70,32 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     /** Fired when the user asks the assistant to pick a file; the UI opens the SAF picker. */
     val pickFileEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
+    /** Recent tool calls (AnaaySampat-style live activity, session only). */
+    private val _toolLog = MutableStateFlow<List<String>>(emptyList())
+    val toolLog: StateFlow<List<String>> = _toolLog
+
+    private var currentJob: kotlinx.coroutines.Job? = null
+
     init {
         executor.onPickFileRequested = { pickFileEvent.tryEmit(Unit) }
+        executor.onActionLabel = { label ->
+            _toolLog.value = (listOf(label) + _toolLog.value).take(6)
+        }
+    }
+
+    /** STOP button: cancels the running turn, speech and mic immediately. */
+    fun stop() {
+        currentJob?.cancel()
+        currentJob = null
+        tts.stop()
+        speech.stopListening()
+        _assistantState.value = AssistantState.IDLE
     }
 
     fun send(rawText: String) {
         val text = rawText.trim()
         if (text.isEmpty()) return
-        viewModelScope.launch { handleUserText(text) }
+        currentJob = viewModelScope.launch { handleUserText(text) }
     }
 
     fun startVoice() {
@@ -85,7 +103,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _assistantState.value = AssistantState.LISTENING
         speech.startListening(language) { recognized ->
             turnWasVoice = true
-            viewModelScope.launch { handleUserText(recognized) }
+            currentJob = viewModelScope.launch { handleUserText(recognized) }
         }
     }
 
@@ -125,8 +143,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         turnWasVoice = false
         try {
             val language = IntentRouter.detectLanguage(text)
-            val parsed = intentRouter.parse(text)
-            val deviceReply = if (parsed != ParsedIntent.None) executor.execute(parsed, language) else null
+
+            val intents = intentRouter.parseAll(text)
+            val commandIntents = intents.filter { it != ParsedIntent.None }
+            val deviceReply = when {
+                commandIntents.isEmpty() -> null
+                else -> commandIntents.mapNotNull { executor.execute(it, language) }
+                    .joinToString("\n\n")
+                    .ifBlank { null }
+            }
             val (reply, mode) = deviceReply?.let { it to null as AiMode? } ?: routeToAi(text)
 
             chatRepository.add(reply, isFromUser = false, mode = mode)
@@ -135,7 +160,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             if (currentSettings.speakReplies) {
                 _assistantState.value = AssistantState.SPEAKING
                 val speakLanguage = if (mode == AiMode.CLOUD) currentSettings.language else language
-                tts.speak(reply, speakLanguage)
+                tts.speak(reply.take(400), speakLanguage)
                 if (startedByVoice && currentSettings.handsFree) {
                     openFollowUpWindow()
                 }

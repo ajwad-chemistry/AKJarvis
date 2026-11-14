@@ -43,7 +43,10 @@ object ServiceLocator {
     val reminderScheduler by lazy { ReminderScheduler(appContext) }
     val ttsManager by lazy { TtsManager(appContext) }
     val actionExecutor by lazy {
-        DeviceActionExecutor(appContext, appLauncher, remindersRepository, notesRepository, memoryRepository)
+        DeviceActionExecutor(
+            appContext, appLauncher, remindersRepository, notesRepository, memoryRepository,
+            cricketApiKeyProvider = { settingsRepository.settings.first().cricketApiKey },
+        )
     }
     val memoryRepository by lazy { MemoryRepository(appContext) }
 

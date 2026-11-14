@@ -44,6 +44,7 @@ private data class PermissionStatuses(
     val notifications: Boolean,
     val exactAlarms: Boolean,
     val notificationAccess: Boolean,
+    val contacts: Boolean,
 )
 
 private fun readStatuses(context: Context): PermissionStatuses {
@@ -56,7 +57,9 @@ private fun readStatuses(context: Context): PermissionStatuses {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         alarmManager.canScheduleExactAlarms()
     }
-    return PermissionStatuses(mic, notifications, exact, NotificationListener.hasAccess(context))
+    val contacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
+        PackageManager.PERMISSION_GRANTED
+    return PermissionStatuses(mic, notifications, exact, NotificationListener.hasAccess(context), contacts)
 }
 
 /**
@@ -84,6 +87,9 @@ fun PermissionsScreen(onBack: () -> Unit) {
         statuses = readStatuses(context)
     }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        statuses = readStatuses(context)
+    }
+    val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         statuses = readStatuses(context)
     }
 
@@ -141,6 +147,12 @@ fun PermissionsScreen(onBack: () -> Unit) {
                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 }
             },
+        )
+        PermissionRow(
+            title = "Contacts",
+            description = "Optional. Only used to find a phone number when you say \"mama ko call karo\". The dialer still opens — nothing is called automatically.",
+            granted = statuses.contacts,
+            onAction = { contactsLauncher.launch(Manifest.permission.READ_CONTACTS) },
         )
         Text(
             text = "Nothing is recorded, uploaded or shared. Revoking a permission immediately disables the related feature.",

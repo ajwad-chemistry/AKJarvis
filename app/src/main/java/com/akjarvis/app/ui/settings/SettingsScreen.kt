@@ -56,6 +56,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val updateInfo by viewModel.updateInfo.collectAsStateWithLifecycle()
 
     val micLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         viewModel.setWakeWordEnabled(granted)
@@ -123,6 +124,11 @@ fun SettingsScreen(
             label = "Model",
             value = settings.model,
             onValueChange = viewModel::setModel,
+        )
+        LabeledTextField(
+            label = "Cricket API key (optional — free at cricapi.com)",
+            value = settings.cricketApiKey,
+            onValueChange = viewModel::setCricketApiKey,
         )
 
         SectionTitle("Personality")
@@ -221,8 +227,16 @@ fun SettingsScreen(
         }
 
         SectionTitle("About")
+        updateInfo?.let { update ->
+            Text(
+                text = "⬆ Update available: v${update.versionName} — ${update.notes}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.padding(bottom = 6.dp),
+            )
+        }
         Text(
-            text = "AK Jarvis v1.1.0 — hybrid AI assistant (Gemini / Claude / Groq / OpenRouter / Z.ai / custom + offline mode). Your API key stays on this device and is never included in backups. The app never records audio silently, never reads your passwords or OTPs, and never sends messages or calls without your confirmation.",
+            text = "AK Jarvis v1.2.0 — hybrid AI assistant (Gemini / Claude / Groq / OpenRouter / Z.ai / custom + offline mode) with 30+ built-in web skills. Your API keys stay on this device and are never included in backups. The app never records audio silently, never reads your passwords or OTPs, and never sends messages or calls without your confirmation.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -9,7 +9,7 @@ sealed interface ParsedIntent {
     data class OpenApp(val target: String) : ParsedIntent
     data class OpenSettings(val target: String) : ParsedIntent
     data class WebSearch(val query: String) : ParsedIntent
-    data class Dial(val number: String?) : ParsedIntent
+    data class Dial(val number: String?, val name: String? = null) : ParsedIntent
     data class ComposeSms(val number: String?, val text: String?) : ParsedIntent
     data class AddNote(val text: String) : ParsedIntent
     data class AddReminder(val message: String, val triggerAt: Long?) : ParsedIntent
@@ -25,6 +25,8 @@ sealed interface ParsedIntent {
     data class CopyText(val text: String) : ParsedIntent
     data class Remember(val fact: String) : ParsedIntent
     data object RecallMemory : ParsedIntent
+    /** A free web API lookup; kind is one of [com.akjarvis.app.data.web.WebTools] kinds. */
+    data class WebQuery(val kind: String, val query: String) : ParsedIntent
     data object Help : ParsedIntent
     data object None : ParsedIntent
 }
@@ -52,8 +54,24 @@ class IntentRouter {
         parseDial(text)?.let { return it }
         parseOpen(text)?.let { return it }
         parseDeviceTools(text)?.let { return it }
+        parseWeb(text)?.let { return it }
         parseSimple(text)?.let { return it }
         return ParsedIntent.None
+    }
+
+    /**
+     * Multi-command support (inspired by the AbuZar Jarvis multi-task engine):
+     * splits a compound request on "and / aur / phir / then / ," and parses each
+     * chunk. Returns multiple intents only when every chunk parses cleanly,
+     * otherwise falls back to a single parse so queries like "search for cats
+     * and dogs" stay intact.
+     */
+    fun parseAll(rawInput: String): List<ParsedIntent> {
+        val chunks = rawInput.split(Regex("\\s*(?:,|\\b(?:aur|and|phir|then)\\b)\\s*", RegexOption.IGNORE_CASE))
+            .filter { it.isNotBlank() }
+        if (chunks.size < 2) return listOf(parse(rawInput))
+        val parsed = chunks.map { parse(it) }
+        return if (parsed.none { it is ParsedIntent.None }) parsed else listOf(parse(rawInput))
     }
 
     // ---- Individual command families -------------------------------------
@@ -111,7 +129,7 @@ class IntentRouter {
     }
 
     private fun parseSearch(text: String): ParsedIntent? {
-        val m = Regex("(?:search(?:\\s+for)?|google|youtube|dhoondo|dhundo|talash karo|talash)\\s+(.+)", RegexOption.IGNORE_CASE).find(text)
+        val m = Regex("\\b(?:search(?:\\s+for)?|google|youtube|dhoondo|dhundo|talash karo|talash)\\s+(.+)", RegexOption.IGNORE_CASE).find(text)
             ?: return null
         val query = m.groupValues[1].trim()
         if (query.isBlank()) return null
@@ -120,10 +138,18 @@ class IntentRouter {
     }
 
     private fun parseDial(text: String): ParsedIntent? {
+        // "mama ko call karo" — contact-name calling
+        Regex("(.+?)\\s+ko\\s+(?:call|phone|dial)(?:\\s+karo)?", RegexOption.IGNORE_CASE).find(text)?.let { ko ->
+            val name = ko.groupValues[1].trim()
+            if (name.isNotBlank()) return ParsedIntent.Dial(number = null, name = name)
+        }
         val m = Regex("\\b(?:call|dial|phone)\\s+(.+)", RegexOption.IGNORE_CASE).find(text) ?: return null
         val target = m.groupValues[1].trim().ifBlank { return ParsedIntent.Dial(null) }
         val digits = target.replace(Regex("[^+\\d]"), "")
-        return ParsedIntent.Dial(digits.ifBlank { null })
+        return ParsedIntent.Dial(
+            number = digits.ifBlank { null },
+            name = if (digits.isBlank()) target else null,
+        )
     }
 
     private fun parseSms(text: String): ParsedIntent? {
@@ -194,6 +220,119 @@ class IntentRouter {
         }
         if (Regex("\\b(what do you remember|kya yaad hai|meri baatein)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
             return ParsedIntent.RecallMemory
+        }
+        return null
+    }
+
+    /**
+     * Free web-API skills (weather, namaz, scores, currency, knowledge, fun…).
+     * Keyword table maps English + Roman Urdu + Urdu phrases to WebTools kinds.
+     */
+    private fun parseWeb(text: String): ParsedIntent? {
+        Regex("\\b(?:research|research karo|research on)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("RESEARCH", it.groupValues[1].trim())
+        }
+        Regex("\\b(?:forecast|weather forecast|agla mausam|mausam forecast)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("FORECAST", it.groupValues[1].trim())
+        }
+        Regex("\\b(?:air quality|aqi|smog)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("AIR", it.groupValues[1].trim())
+        }
+        Regex("\\b(?:sunrise|sunset|suraj (?:kab|nikalta))\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("SUN", it.groupValues[1].trim())
+        }
+        if (Regex("\\bnamaz|\\bprayer|\\bsehri|\\biftar|\\bazaan|\\bazan|\\bnamaaz|نماز", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("PRAYER", text)
+        }
+        if (Regex("\\bcricket\\b|live score|match score|score kya", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("CRICKET", text)
+        }
+        if (Regex("trending (?:crypto|coins)|crypto trending", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("CRYPTO_TREND", text)
+        }
+        if (Regex("\\b(?:bitcoin|btc|ethereum|eth|solana|dogecoin|doge|crypto|xrp|ripple|bnb)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("CRYPTO", text)
+        }
+        if (Regex("\\bcurrency\\b|exchange rate|dollar (?:rate|ka rate|bhav)|(?:rate|bhav)\\b.*\\b(?:dollar|euro|pound|riyal|dirham|rupee)\\b|\\b(?:usd|eur|gbp|sar|aed|inr)\\b\\s*(?:to|vs)\\b|to pkr", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("CURRENCY", text)
+        }
+        Regex("\\b(?:meaning of|dictionary)\\b\\s*(.+)|(.+?)\\s+ka matlab|\\bmatlab\\s+(.+)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val word = listOf(m.groupValues[1], m.groupValues[2], m.groupValues[3]).firstOrNull { it.isNotBlank() }
+            return ParsedIntent.WebQuery("MEANING", word?.trim() ?: "")
+        }
+        Regex("\\b(?:translate|tarjuma)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("TRANSLATE", it.groupValues[1].trim())
+        }
+        Regex("\\b(?:wiki|wikipedia)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("WIKI", it.groupValues[1].trim())
+        }
+        if (Regex("hacker news|tech news", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("NEWS", "")
+        }
+        Regex("\\b(?:book|kitab)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("BOOK", it.groupValues[1].trim())
+        }
+        Regex("\\b(?:country|country info|about country)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("COUNTRY", it.groupValues[1].trim())
+        }
+        if (Regex("\\bjoke\\b|mazah|chutkula|latifa", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("JOKE", "")
+        }
+        if (Regex("\\bquote\\b|aqwal|quotation", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("QUOTE", "")
+        }
+        if (Regex("\\badvice\\b|mashwara|mashvera", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("ADVICE", "")
+        }
+        if (Regex("\\b(?:random fact|facts?)\\b|dilchasp baat", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("FACT", "")
+        }
+        if (Regex("\\b(?:cat|billi)\\b.*(?:photo|picture|pic|image|tasveer)|(?:photo|picture|pic|image|tasveer).*\\b(?:cat|billi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("CAT", "")
+        }
+        if (Regex("\\b(?:dog|kutta|kutte)\\b.*(?:photo|picture|pic|image|tasveer)|(?:photo|picture|pic|image|tasveer).*\\b(?:dog|kutta|kutte)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("DOG", "")
+        }
+        if (Regex("\\bxkcd\\b|\\bcomic\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("XKCD", "")
+        }
+        Regex("\\btime\\s+(?:in|of)\\s+(.+)|(.+?)\\s+ka (?:waqt|time)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val city = listOf(m.groupValues[1], m.groupValues[2]).firstOrNull { it.isNotBlank() }
+            return ParsedIntent.WebQuery("TIMEZONE", city?.trim() ?: "")
+        }
+        if (Regex("\\bmy ip\\b|mera ip|ip address", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("MYIP", "")
+        }
+        Regex("\\b(?:shorten|short url|chota link|link chota)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("SHORTEN", it.groupValues[1].trim())
+        }
+        Regex("\\bwhere is\\s+(.+)|(.+?)\\s+kahan hai", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val place = listOf(m.groupValues[1], m.groupValues[2]).firstOrNull { it.isNotBlank() }
+            return ParsedIntent.WebQuery("PLACE", place?.trim() ?: "")
+        }
+        Regex("\\b(?:distance|doori|kitni door)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("DISTANCE", it.groupValues[1].trim().ifBlank { text })
+        }
+        if (Regex("\\bholiday|chhutti|chutti|public holidays", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("HOLIDAY", text)
+        }
+        Regex("\\bgithub\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("GITHUB", it.groupValues[1].trim().ifBlank { text })
+        }
+        Regex("\\bstack\\s?overflow\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("STACK", it.groupValues[1].trim().ifBlank { text })
+        }
+        if (Regex("\\biss\\b|space station", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("ISS", "")
+        }
+        Regex("\\b(?:pokemon|pokémon)\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("POKEMON", it.groupValues[1].trim())
+        }
+        if (Regex("\\bquran|quraan|\\bayat|\\bayah|\\bsurah|قرآن", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("QURAN", "")
+        }
+        Regex("\\b(?:weather|mausam|mosam)(?:\\s+(?:in|of|at|ka|me|mein))?\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("WEATHER", it.groupValues[1].trim())
         }
         return null
     }

@@ -7,6 +7,7 @@ import android.os.Environment
 import com.akjarvis.app.data.repo.MemoryRepository
 import com.akjarvis.app.data.repo.NotesRepository
 import com.akjarvis.app.data.repo.RemindersRepository
+import com.akjarvis.app.data.web.WebTools
 import kotlinx.coroutines.flow.first
 import com.akjarvis.app.domain.IntentRouter
 import com.akjarvis.app.domain.ParsedIntent
@@ -27,12 +28,47 @@ class DeviceActionExecutor(
     private val remindersRepository: RemindersRepository,
     private val notesRepository: NotesRepository,
     private val memoryRepository: MemoryRepository? = null,
+    private val cricketApiKeyProvider: suspend () -> String = { "" },
 ) {
     /** Hook the UI sets to open the system file picker on demand. */
     var onPickFileRequested: (() -> Unit)? = null
 
+    /** Hook the UI sets to receive a short label of every executed action (tool-call log). */
+    var onActionLabel: ((String) -> Unit)? = null
+
     /** Executes the intent; returns a confirmation reply, or null if not a device command. */
-    suspend fun execute(intent: ParsedIntent, language: LanguageMode): String? = when (intent) {
+    suspend fun execute(intent: ParsedIntent, language: LanguageMode): String? {
+        if (intent != ParsedIntent.None) onActionLabel?.invoke(labelOf(intent))
+        return executeIntent(intent, language)
+    }
+
+    private fun labelOf(intent: ParsedIntent): String = when (intent) {
+        is ParsedIntent.OpenApp -> "open ${intent.target}"
+        is ParsedIntent.OpenSettings -> "settings: ${intent.target}"
+        is ParsedIntent.WebSearch -> "web search"
+        is ParsedIntent.Dial -> "call"
+        is ParsedIntent.ComposeSms -> "sms"
+        is ParsedIntent.AddNote -> "note"
+        is ParsedIntent.AddReminder -> "reminder"
+        ParsedIntent.ShowTime -> "time"
+        ParsedIntent.ShowDate -> "date"
+        ParsedIntent.ReadNotifications -> "notifications"
+        ParsedIntent.OpenDownloads -> "downloads"
+        ParsedIntent.PickFile -> "file picker"
+        is ParsedIntent.Flashlight -> "torch"
+        ParsedIntent.BatteryStatus -> "battery"
+        is ParsedIntent.Volume -> "volume"
+        is ParsedIntent.ShareText -> "share"
+        is ParsedIntent.CopyText -> "clipboard"
+        is ParsedIntent.Remember -> "memory"
+        ParsedIntent.RecallMemory -> "memory"
+        is ParsedIntent.WebQuery -> intent.kind.lowercase()
+        ParsedIntent.Help -> "help"
+        ParsedIntent.None -> ""
+    }
+
+    private suspend fun executeIntent(intent: ParsedIntent, language: LanguageMode): String? {
+        return when (intent) {
         is ParsedIntent.OpenApp -> intent.target.let { target ->
             val app = appLauncher.launchBestMatch(target)
             if (app != null) PhraseBook.openingApp(app.label, language)
@@ -51,7 +87,14 @@ class DeviceActionExecutor(
             PhraseBook.searching(intent.query, language)
         }
         is ParsedIntent.Dial -> {
-            openDialer(intent.number)
+            if (intent.number == null && intent.name != null && !DeviceTools.hasContactsAccess(context)) {
+                return PhraseBook.contactPermissionNeeded(language)
+            }
+            val number = intent.number ?: intent.name?.let { name ->
+                DeviceTools.findContactNumber(context, name)?.second
+                    ?: return PhraseBook.contactNotFound(name, language)
+            }
+            openDialer(number)
             PhraseBook.dialerOpened(language)
         }
         is ParsedIntent.ComposeSms -> {
@@ -128,8 +171,12 @@ class DeviceActionExecutor(
                 else PhraseBook.memoryList(facts, language)
             }
         }
+        is ParsedIntent.WebQuery ->
+            WebTools.dispatch(intent.kind, intent.query, cricketApiKeyProvider())
+                ?: PhraseBook.webLookupFailed(language)
         ParsedIntent.Help -> PhraseBook.help(language)
         ParsedIntent.None -> null
+        }
     }
 
     private fun openDialer(number: String?) {
@@ -253,9 +300,9 @@ object PhraseBook {
     }
 
     fun help(lang: LanguageMode) = when (lang) {
-        LanguageMode.URDU -> "میں ایپ کھول سکتا ہوں، سیٹنگز، یاد دہانیاں، نوٹس، ویب سرچ، ٹرچ، والیوم، بیٹری اور نوٹیفکیشن پڑھ سکتا ہوں۔"
-        LanguageMode.ROMAN_URDU -> "Main app khol sakta hoon, settings, reminders, notes, web search, torch, volume, battery check aur notifications parh sakta hoon."
-        LanguageMode.ENGLISH -> "I can open apps, change settings, set reminders, save notes, search the web, control the torch and volume, check battery and read notifications."
+        LanguageMode.URDU -> "میں ایپ کھول سکتا ہوں، یاد دہانیاں، نوٹس، ٹرچ، والیوم، بیٹری، موسم، نماز کے اوقات، کرکٹ سکور، کرنسی ریٹ، ترجمہ، اور بہت کچھ کر سکتا ہوں۔"
+        LanguageMode.ROMAN_URDU -> "Main apps, settings, reminders, notes, torch, volume, battery ke saath weather, namaz times, cricket score, currency rates, translation, wikipedia, jokes aur 30+ web skills bhi chala sakta hoon. Multi-commands bhi: 'torch on karo aur volume up'."
+        LanguageMode.ENGLISH -> "I can open apps, set reminders, save notes, control torch/volume, check battery, and answer from 30+ free web APIs: weather, forecast, air quality, namaz times, cricket scores, currency, crypto, dictionary, translation, wikipedia, books, jokes and more. Try multi-commands like \"torch on and volume up\"."
     }
 
     fun torchSet(on: Boolean?, lang: LanguageMode) = when (lang) {
@@ -340,5 +387,23 @@ object PhraseBook {
         LanguageMode.URDU -> facts.joinToString("\n") { "• $it" }
         LanguageMode.ROMAN_URDU -> facts.joinToString("\n") { "• $it" }
         LanguageMode.ENGLISH -> facts.joinToString("\n") { "• $it" }
+    }
+
+    fun contactPermissionNeeded(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "کال کے لیے رابطوں کی اجازت درکار ہے۔ Permissions اسکرین سے دیں۔"
+        LanguageMode.ROMAN_URDU -> "Call ke liye contacts ki ijazat chahiye. Permissions screen se dein."
+        LanguageMode.ENGLISH -> "I need Contacts permission to call by name. Grant it in Settings → Permissions."
+    }
+
+    fun contactNotFound(name: String, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "\"$name\" نام کا کوئی رابطہ نہیں ملا۔"
+        LanguageMode.ROMAN_URDU -> "\"$name\" naam ka koi contact nahi mila."
+        LanguageMode.ENGLISH -> "No contact named \"$name\" found."
+    }
+
+    fun webLookupFailed(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "انٹرنیٹ سروس سے جواب حاصل نہیں ہو سکا۔"
+        LanguageMode.ROMAN_URDU -> "Internet service se jawab hasil nahi ho saka."
+        LanguageMode.ENGLISH -> "The web service didn't answer. Check your internet and try again."
     }
 }

@@ -15,7 +15,7 @@
 ## Commands
 
 - The command parser is keyword/regex based: it understands a practical set of phrasings in English, Roman Urdu and Urdu, but not arbitrary grammar. Unrecognized phrasings go to the AI instead.
-- **Calls/SMS** only open the dialer/messaging app pre-filled (by design). Contact-name → number resolution is not implemented (would require reading contacts, a sensitive permission that was deliberately left out).
+- **Calls/SMS** only open the dialer/messaging app pre-filled (by design). Contact-name calling ("mama ko call karo") needs the opt-in READ_CONTACTS permission and only pre-fills the dialer.
 - **Reminders** created by voice support relative times ("in 10 minutes", "at 17:30") and Roman Urdu ("10 minute baad"); complex phrases like "next Monday at 9" are not parsed yet.
 - **File management** is intentionally limited to the system file picker and Downloads, to avoid broad storage permissions.
 
@@ -23,3 +23,11 @@
 
 - minSdk 26 (Android 8.0). Devices older than that are not supported.
 - The app targets Android 14+ (targetSdk 35) foreground-service rules; the wake-word service shows a permanent notification as required.
+
+## Web skills (v1.2.0)
+
+- 30+ free, key-less web APIs (weather, namaz times, cricket, currency, crypto, dictionary, translation, wikipedia, books, jokes, ISS, etc.) are keyword-routed, not AI-picked: unusual phrasings may miss the keyword and go to the AI chat instead.
+- These are third-party free services: they can rate-limit, change format or go down (one joke service already did during development — a backup is wired in). Cricket scores need a free CricAPI key pasted in Settings.
+- Translation uses Google Translate's public (unofficial) endpoint; if Google changes it, translation may stop until an update.
+- Public-holiday data is not available for every country (e.g. Pakistan currently returns no data).
+- The in-app update checker reads `update.json` from this GitHub repo — it works only when a release is published there.

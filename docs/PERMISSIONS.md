@@ -6,6 +6,7 @@ Every permission below is requested **in context, only when you use the related 
 |---|---|---|---|
 | `INTERNET` | Normal | Cloud AI requests and web search | App works in Offline Mode |
 | `RECORD_AUDIO` | **Runtime** | Voice input (mic button) and optional wake-word service | Typing still works; voice features disabled |
+| `READ_CONTACTS` | **Runtime, opt-in** | Resolving a name to a number when you say "mama ko call karo". The dialer still opens — nothing is called automatically | Contact-name calling disabled; "call <number>" still works |
 | `POST_NOTIFICATIONS` | **Runtime** (Android 13+) | Reminder notifications | Reminders are saved but silently |
 | `SCHEDULE_EXACT_ALARM` | Special (Android 12+) | Reminders fire exactly on time | Reminders may fire a few minutes late (automatic fallback to inexact alarms) |
 | `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_MICROPHONE` | Normal | Keeps the optional wake-word service alive with a visible notification | Wake word disabled (service never starts unless you enable it) |

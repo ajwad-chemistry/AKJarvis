@@ -3,7 +3,7 @@ package com.akjarvis.app.domain.model
 /** Which AI backend answers the user. */
 enum class AiMode { CLOUD, FALLBACK }
 
-enum class ThemeMode { SYSTEM, DARK, LIGHT }
+enum class ThemeMode { SYSTEM, DARK, LIGHT, IRON }
 
 /** Assistant conversation language. Roman Urdu is written in Latin script. */
 enum class LanguageMode { ENGLISH, URDU, ROMAN_URDU }

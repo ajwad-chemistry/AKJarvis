@@ -43,6 +43,23 @@ private val LightColors = lightColorScheme(
     outline = Color(0xFFC4CEDC),
 )
 
+// Iron Man edition: hot-rod red and gold on dark carbon.
+private val IronColors = darkColorScheme(
+    primary = Color(0xFFFBBF24),
+    onPrimary = Color(0xFF2B1902),
+    secondary = Color(0xFFEF4444),
+    onSecondary = Color(0xFF2B0505),
+    tertiary = Color(0xFF38BDF8),
+    background = Color(0xFF120B08),
+    onBackground = Color(0xFFF7EFE3),
+    surface = Color(0xFF1E120C),
+    onSurface = Color(0xFFF7EFE3),
+    surfaceVariant = Color(0xFF2C1B11),
+    onSurfaceVariant = Color(0xFFCBB79B),
+    error = Color(0xFFF87171),
+    outline = Color(0xFF4A2E1C),
+)
+
 private val AppTypography = Typography()
 
 @Composable
@@ -54,9 +71,14 @@ fun AKJarvisTheme(
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.DARK -> true
         ThemeMode.LIGHT -> false
+        ThemeMode.IRON -> true
+    }
+    val colorScheme = when (themeMode) {
+        ThemeMode.IRON -> IronColors
+        else -> if (darkTheme) DarkColors else LightColors
     }
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
+        colorScheme = colorScheme,
         typography = AppTypography,
         content = content,
     )

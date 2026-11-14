@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.akjarvis.app.ai.AiProvider
 import com.akjarvis.app.data.prefs.AppSettings
+import com.akjarvis.app.data.web.UpdateChecker
 import com.akjarvis.app.data.prefs.SettingsRepository
 import com.akjarvis.app.data.repo.ChatRepository
 import com.akjarvis.app.data.repo.MemoryRepository
@@ -13,6 +14,7 @@ import com.akjarvis.app.domain.model.AiMode
 import com.akjarvis.app.domain.model.LanguageMode
 import com.akjarvis.app.domain.model.PersonalityStyle
 import com.akjarvis.app.domain.model.ThemeMode
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -30,6 +32,7 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setAiMode(mode: AiMode) = launch { repository.setAiMode(mode) }
     fun setProvider(provider: AiProvider) = launch { repository.setProvider(provider) }
     fun setApiKey(key: String) = launch { repository.setApiKey(key) }
+    fun setCricketApiKey(key: String) = launch { repository.setCricketApiKey(key) }
     fun setApiBaseUrl(url: String) = launch { repository.setApiBaseUrl(url) }
     fun setModel(model: String) = launch { repository.setModel(model) }
     fun setTheme(theme: ThemeMode) = launch { repository.setTheme(theme) }
@@ -44,6 +47,13 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearChat() = launch { chatRepository.clear() }
     fun clearMemory() = launch { memoryRepository.clear() }
+
+    private val _updateInfo = MutableStateFlow<UpdateChecker.UpdateInfo?>(null)
+    val updateInfo: StateFlow<UpdateChecker.UpdateInfo?> = _updateInfo
+
+    init {
+        viewModelScope.launch { _updateInfo.value = UpdateChecker.check() }
+    }
 
     private fun launch(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

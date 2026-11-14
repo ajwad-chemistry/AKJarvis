@@ -29,7 +29,13 @@ A native Android AI assistant with a hybrid **Cloud + Local/Offline** architectu
 - 🔦 **Device tools by voice** — flashlight, volume up/down/mute, battery status, share, copy to clipboard
 - 🧠 **Assistant memory** — say "remember…" / "yaad rakho…" and facts are stored on-device and injected into AI replies (view/clear in Settings)
 - 🎙 **Hands-free follow-up** — after a spoken reply the mic stays open for 7 seconds so you can continue naturally
-- 🛡 **Privacy-first**: no analytics, no tracking, API key stays on-device and out of backups
+- 🌐 **30+ free web skills** — weather & 5-day forecast, air quality, sunrise/sunset, namaz times, cricket scores, currency & crypto rates, dictionary, translation, Wikipedia, research with sources, books, countries, holidays, jokes, quotes, cat/dog pictures, ISS tracker, GitHub/Stack Overflow lookup and more — all key-less free APIs
+- 🧩 **Multi-commands** — "torch on karo aur volume up" runs both tasks in one message
+- 🛑 **STOP button** — instantly cancels a running answer, speech or listening session
+- 📇 **Contact-name calling** — "mama ko call karo" (opt-in Contacts permission; dialer opens, you confirm)
+- 🏭 **Iron Man theme** — hot-rod red & gold dark mode, plus dark/light/system
+- ⬆ **In-app update checker** — reads update.json from this repo and tells you when a new version is out
+- 🛡 **Privacy-first**: no analytics, no tracking, API keys stay on-device and out of backups
 
 ## Architecture
 
@@ -95,7 +101,7 @@ Or from the command line — see [docs/BUILDING.md](docs/BUILDING.md).
    | Claude (Anthropic) | `https://api.anthropic.com/v1/` | `claude-3-5-haiku-latest` | Paid API |
    | Custom | your endpoint | your model | Any OpenAI-compatible API |
 
-2. Get a key from that provider's console, paste it in **Cloud AI configuration**.
+2. Get a key from that provider's console, paste it in **Cloud AI configuration**. Cricket scores additionally accept a free [CricAPI](https://cricapi.com) key (optional).
 3. Base URL and model are pre-filled per provider but always editable (model IDs change over time — update them here without reinstalling).
 4. Done — OpenAI-compatible providers use `{base-url}chat/completions`; Claude uses the native `messages` API.
 

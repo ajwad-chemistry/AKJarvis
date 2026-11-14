@@ -1,0 +1,6 @@
+{
+  "versionCode": 3,
+  "versionName": "1.2.0",
+  "apkUrl": "https://github.com/ajwad-chemistry/AKJarvis/raw/main/releases/AKJarvis-v1.2.0-debug.apk",
+  "notes": "Web APIs (weather, namaz, cricket, currency, crypto, knowledge, fun), multi-task commands, STOP button, tool-call log, contact-name calling, Iron Man theme, update checker."
+}
