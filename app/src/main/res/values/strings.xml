@@ -34,4 +34,7 @@
     <string name="tasks_title">Notes &amp; Tasks</string>
     <string name="error_generic">Something went wrong. Please try again.</string>
     <string name="error_no_api_key">No API key set. Add one in Settings → Cloud AI, or switch to Offline Mode.</string>
+    <string name="automation_service_label">AK Jarvis Mobile Control</string>
+    <string name="perm_accessibility">Mobile control (back, home, tap, type, read screen)</string>
+    <string name="perm_accessibility_hint">Optional. Advanced control works only after you enable this in system Accessibility settings, and only when you give a command. Disable any time.</string>
 </resources>

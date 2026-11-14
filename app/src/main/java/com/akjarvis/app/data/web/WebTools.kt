@@ -11,7 +11,14 @@ import java.util.Locale
  */
 object WebTools {
 
-    suspend fun dispatch(kind: String, query: String, cricketApiKey: String = ""): String? =
+    suspend fun dispatch(
+        kind: String,
+        query: String,
+        cricketApiKey: String = "",
+        tavilyApiKey: String = "",
+        windyApiKey: String = "",
+        geoapifyApiKey: String = "",
+    ): String? =
         runCatching {
             when (kind) {
                 "WEATHER" -> weather(query)
@@ -39,7 +46,7 @@ object WebTools {
                 "TIMEZONE" -> timeIn(query)
                 "MYIP" -> myIp()
                 "SHORTEN" -> shorten(query)
-                "PLACE" -> whereIs(query)
+                "PLACE" -> whereIs(query, geoapifyApiKey)
                 "DISTANCE" -> distance(query)
                 "HOLIDAY" -> holidays(query)
                 "GITHUB" -> github(query)
@@ -47,7 +54,10 @@ object WebTools {
                 "ISS" -> issPosition()
                 "POKEMON" -> pokemon(query)
                 "QURAN" -> quranVerse()
-                "RESEARCH" -> research(query)
+                "RESEARCH" -> research(query, tavilyApiKey)
+                "TAVILY" -> tavilySearch(query, tavilyApiKey)
+                "WINDY" -> windyForecast(query, windyApiKey)
+                "NEARBY" -> nearby(query, geoapifyApiKey)
                 else -> null
             }
         }.getOrNull()
@@ -414,8 +424,18 @@ object WebTools {
         return "🔗 Short link: ${data.str("shorturl") ?: return null}"
     }
 
-    suspend fun whereIs(place: String): String? {
+    suspend fun whereIs(place: String, geoapifyApiKey: String = ""): String? {
         if (place.isBlank()) return null
+        if (geoapifyApiKey.isNotBlank()) {
+            val data = Http.getJson(
+                "https://api.geoapify.com/v1/geocode/search?text=${enc(place)}&apiKey=${enc(geoapifyApiKey)}"
+            ) ?: return null
+            val hit = data.arr("features")?.at(0)?.obj("properties") ?: return null
+            val name = hit.str("formatted") ?: return null
+            val lat = hit.dbl("lat")
+            val lon = hit.dbl("lon")
+            return "📍 $name" + (lat?.let { "\nhttps://maps.google.com/?q=$it,${lon ?: ""}" } ?: "")
+        }
         val hit = Http.getJson("https://nominatim.openstreetmap.org/search?q=${enc(place)}&format=json&limit=1")
             ?.arr()?.at(0) ?: return null
         val lat = hit.str("lat") ?: return null
@@ -499,9 +519,89 @@ object WebTools {
         return "☪ $key\n$arabic\n\n$translation"
     }
 
-    /** Research agent: multi-source answer with links (Wikipedia search). */
-    suspend fun research(topic: String): String? {
+    /** Tavily AI-optimized search (free key from tavily.com). */
+    suspend fun tavilySearch(query: String, apiKey: String): String? {
+        if (query.isBlank()) return null
+        if (apiKey.isBlank()) {
+            return "🔎 Tavily search needs a free API key: get one at tavily.com and paste it in Settings."
+        }
+        val body = """{"api_key":"${apiKey.replace("\"", "")}","query":"${query.replace("\"", "'")}","max_results":5,"search_depth":"basic"}"""
+        val data = Http.postJson("https://api.tavily.com/search", body) ?: return null
+        val results = data.arr("results")?.take(5) ?: return null
+        val answer = data.str("answer")
+        val lines = results.mapNotNull { r ->
+            val title = r.str("title") ?: return@mapNotNull null
+            "• $title\n  ${r.str("url") ?: ""}"
+        }
+        val header = answer?.let { "$it\n\nSources:" } ?: "🔎 Tavily results:"
+        return "$header\n${lines.joinToString("\n")}"
+    }
+
+    /** Windy point forecast (free key from windy.com/api). */
+    suspend fun windyForecast(city: String, apiKey: String): String? {
+        if (apiKey.isBlank()) {
+            return "🌬 Windy forecast needs a free API key: get one at windy.com/api and paste it in Settings."
+        }
+        val (lat, lon, label) = geocode(cleanCity(city).ifBlank { "Karachi" }) ?: return null
+        val body = """{"lat":$lat,"lon":$lon,"model":"icon","parameters":["temp","wind","precipitation"],"levels":["surface"],"key":"${apiKey.replace("\"", "")}"}"""
+        val data = Http.postJson(
+            "https://api.windy.com/point-forecast/v2",
+            body,
+            headers = mapOf("x-windy-api-key" to apiKey),
+        ) ?: return null
+        val temp = data.arr("temp")?.at(0)?.str() ?: return null
+        val wind = data.arr("wind")?.at(0)?.dbl()
+        val precip = data.arr("precipitation")?.at(0)?.dbl()
+        return "🌬 Windy forecast for $label: ${temp}°C" +
+            (wind?.let { ", wind ${String.format(java.util.Locale.US, "%.1f", it)} m/s" } ?: "") +
+            (precip?.let { ", precipitation ${String.format(java.util.Locale.US, "%.1f", it)} mm" } ?: "")
+    }
+
+    private val nearbyTypes = mapOf(
+        "restaurant" to "restaurant", "khana" to "restaurant", "food" to "restaurant",
+        "cafe" to "cafe", "coffee" to "cafe", "chai" to "cafe",
+        "atm" to "atm", "bank" to "bank",
+        "mosque" to "place_of_worship", "masjid" to "place_of_worship",
+        "hospital" to "hospital", "dospital" to "hospital",
+        "pharmacy" to "pharmacy", "dawai" to "pharmacy",
+        "fuel" to "fuel", "petrol" to "fuel", "cng" to "fuel",
+        "hotel" to "hotel", "school" to "school", "park" to "park",
+    )
+
+    /** OSM Overpass nearby search — free, no key. Geoapify used for better geocoding if a key is set. */
+    suspend fun nearby(query: String, geoapifyApiKey: String = ""): String? {
+        val type = nearbyTypes.entries.firstOrNull { query.lowercase().contains(it.key) }?.value
+            ?: return "Nearby search needs a place type: restaurant, cafe, atm, mosque, hospital, pharmacy, petrol, hotel, school or park."
+        val area = query.replace(Regex("\\b(nearby|near|around|pas|qareeb|qareebi|in|me|mein)\\b", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("\\b(?:restaurants?|khana|food|cafes?|coffee|chai|atm|bank|mosques?|masjid|hospital|pharmacy|dawai|fuel|petrol|cng|hotels?|schools?|parks?)\\b", RegexOption.IGNORE_CASE), " ")
+            .replace(Regex("\\s+"), " ").trim()
+        val location = geocode(cleanCity(area).ifBlank { "Karachi" }) ?: return null
+        val overpass =
+            "[out:json][timeout:20];node(around:1500,${location.first},${location.second})[amenity=$type];out 5;"
+        val data = Http.postJson(
+            "https://overpass-api.de/api/interpreter",
+            "data=${java.net.URLEncoder.encode(overpass, "UTF-8")}",
+            headers = mapOf("Content-Type" to "application/x-www-form-urlencoded"),
+        ) ?: return null
+        val elements = data.arr("elements")?.take(5) ?: return null
+        val names = elements.mapNotNull { it.str("name") }.distinct()
+        return if (names.isEmpty()) {
+            "📍 No ${type.replace('_', ' ')} found near ${location.third}."
+        } else {
+            "📍 ${type.replace('_', ' ').replaceFirstChar { it.uppercase() }} near ${location.third}:\n" +
+                names.joinToString("\n") { "• $it" }
+        }
+    }
+
+    /** Research agent: multi-source answer with links (Tavily when keyed, else Wikipedia). */
+    suspend fun research(topic: String, tavilyApiKey: String = ""): String? {
         if (topic.isBlank()) return null
+        if (tavilyApiKey.isNotBlank()) {
+            val tavily = tavilySearch(topic, tavilyApiKey)
+            val wiki = wikipedia(topic)
+            return listOfNotNull(tavily, wiki?.let { "\n📚 Wikipedia: $it" }).joinToString("\n").ifBlank { null }
+        }
+
         val data = Http.getJson(
             "https://en.wikipedia.org/w/api.php?action=opensearch&search=${enc(topic)}&limit=3&format=json"
         ) as? kotlinx.serialization.json.JsonArray ?: return null

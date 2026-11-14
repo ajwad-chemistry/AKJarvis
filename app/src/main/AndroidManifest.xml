@@ -18,6 +18,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Termux bridge (optional): forward safe termux-api commands to the Termux app.
+         Only used when the user installs Termux and grants this permission. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
 
     <!-- Package visibility: needed to list and launch installed apps via voice command -->
     <queries>
@@ -36,6 +39,7 @@
             <action android:name="android.intent.action.SENDTO" />
             <data android:scheme="smsto" />
         </intent>
+        <package android:name="com.termux" />
     </queries>
 
     <application
@@ -74,6 +78,22 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+        </service>
+
+        <!-- Advanced mobile control (back/home/recents/type/tap/scroll/read screen).
+             Inactive until the user enables it in system Accessibility settings;
+             acts only on explicit voice/text commands; never reads password fields. -->
+        <service
+            android:name=".device.AutomationService"
+            android:exported="true"
+            android:label="@string/automation_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
         </service>
 
         <receiver

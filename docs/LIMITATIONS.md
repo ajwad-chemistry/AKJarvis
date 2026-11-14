@@ -31,3 +31,17 @@
 - Translation uses Google Translate's public (unofficial) endpoint; if Google changes it, translation may stop until an update.
 - Public-holiday data is not available for every country (e.g. Pakistan currently returns no data).
 - The in-app update checker reads `update.json` from this GitHub repo — it works only when a release is published there.
+
+## Advanced mobile control & Termux (v1.3.0)
+
+- **Mobile control** (accessibility) is opt-in and command-driven: it performs back/home/recents/notification-shade, scroll, tap-by-text, type-into-focused-field and read-screen **only when you ask**. It never reads password fields (the system hides them from accessibility), never types by itself, and turns off instantly when you disable the service.
+- **Tap/type/read** work through the accessibility tree, so apps that block accessibility or render custom-drawn UI (many games) are not controllable.
+- **Termux bridge** needs one-time setup: install **Termux + Termux:API from F-Droid** (Play builds are outdated), then run `mkdir -p ~/.termux && echo "allow-external-apps=true" >> ~/.termux/termux.properties` inside Termux, and grant AK Jarvis the RUN_COMMAND permission. Only a fixed allow-list of safe, read-only termux-api commands is forwarded — arbitrary shell commands are refused by design.
+- **Media keys** (play/pause/next/previous) go to the active media session; behavior depends on the music app honoring media key events (almost all do).
+
+## Keyed web services (v1.3.0)
+
+- **Tavily** (deep search) and **Windy** (point forecasts) need their own free API keys pasted in Settings; without a key the app explains where to get one instead of failing silently.
+- **Nearby places** uses OpenStreetMap's Overpass API (free, no key); results depend on OSM coverage of your area. With a free Geoapify key, city geocoding is more accurate.
+- The **OmniRouter** provider ships with base URL `https://omnirouters.com/v1/` and model `auto` — verify/adjust both in Settings to match your OmniRouter account.
+- Windy and Tavily endpoints were implemented from their public docs but could not be live-tested without a key; if a response format changes, the app degrades to the "web service didn't answer" message.

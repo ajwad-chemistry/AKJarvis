@@ -33,6 +33,9 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
     fun setProvider(provider: AiProvider) = launch { repository.setProvider(provider) }
     fun setApiKey(key: String) = launch { repository.setApiKey(key) }
     fun setCricketApiKey(key: String) = launch { repository.setCricketApiKey(key) }
+    fun setTavilyApiKey(key: String) = launch { repository.setTavilyApiKey(key) }
+    fun setWindyApiKey(key: String) = launch { repository.setWindyApiKey(key) }
+    fun setGeoapifyApiKey(key: String) = launch { repository.setGeoapifyApiKey(key) }
     fun setApiBaseUrl(url: String) = launch { repository.setApiBaseUrl(url) }
     fun setModel(model: String) = launch { repository.setModel(model) }
     fun setTheme(theme: ThemeMode) = launch { repository.setTheme(theme) }

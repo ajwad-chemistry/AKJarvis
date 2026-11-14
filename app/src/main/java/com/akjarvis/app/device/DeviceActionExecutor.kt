@@ -10,6 +10,7 @@ import com.akjarvis.app.data.repo.RemindersRepository
 import com.akjarvis.app.data.web.WebTools
 import kotlinx.coroutines.flow.first
 import com.akjarvis.app.domain.IntentRouter
+import com.akjarvis.app.domain.MediaCommand
 import com.akjarvis.app.domain.ParsedIntent
 import com.akjarvis.app.domain.VolumeDirection
 import com.akjarvis.app.domain.model.InstalledApp
@@ -29,6 +30,9 @@ class DeviceActionExecutor(
     private val notesRepository: NotesRepository,
     private val memoryRepository: MemoryRepository? = null,
     private val cricketApiKeyProvider: suspend () -> String = { "" },
+    private val tavilyApiKeyProvider: suspend () -> String = { "" },
+    private val windyApiKeyProvider: suspend () -> String = { "" },
+    private val geoapifyApiKeyProvider: suspend () -> String = { "" },
 ) {
     /** Hook the UI sets to open the system file picker on demand. */
     var onPickFileRequested: (() -> Unit)? = null
@@ -63,6 +67,16 @@ class DeviceActionExecutor(
         is ParsedIntent.Remember -> "memory"
         ParsedIntent.RecallMemory -> "memory"
         is ParsedIntent.WebQuery -> intent.kind.lowercase()
+        ParsedIntent.GoBack -> "back"
+        ParsedIntent.GoHome -> "home"
+        ParsedIntent.OpenRecents -> "recents"
+        ParsedIntent.OpenNotificationShade -> "notification shade"
+        ParsedIntent.ReadScreen -> "read screen"
+        is ParsedIntent.TypeText -> "type"
+        is ParsedIntent.Scroll -> "scroll"
+        is ParsedIntent.TapOn -> "tap ${intent.target}"
+        is ParsedIntent.MediaControl -> "media ${intent.action.name.lowercase()}"
+        is ParsedIntent.TermuxCommand -> "termux"
         ParsedIntent.Help -> "help"
         ParsedIntent.None -> ""
     }
@@ -172,11 +186,85 @@ class DeviceActionExecutor(
             }
         }
         is ParsedIntent.WebQuery ->
-            WebTools.dispatch(intent.kind, intent.query, cricketApiKeyProvider())
-                ?: PhraseBook.webLookupFailed(language)
+            WebTools.dispatch(
+                intent.kind,
+                intent.query,
+                cricketApiKeyProvider(),
+                tavilyApiKeyProvider(),
+                windyApiKeyProvider(),
+                geoapifyApiKeyProvider(),
+            ) ?: PhraseBook.webLookupFailed(language)
+        ParsedIntent.GoBack -> automationAction(language) { it.goBack() }
+        ParsedIntent.GoHome -> automationAction(language) { it.goHome() }
+        ParsedIntent.OpenRecents -> automationAction(language) { it.openRecents() }
+        ParsedIntent.OpenNotificationShade -> automationAction(language) { it.openNotificationShade() }
+        ParsedIntent.ReadScreen -> {
+            val service = AutomationService.instance
+            if (service == null || !AutomationService.hasAccess(context)) {
+                PhraseBook.automationNeeded(language)
+            } else {
+                service.readScreenText()?.take(1200)?.let { screenText ->
+                    PhraseBook.screenHeader(language) + "\n" + screenText
+                } ?: PhraseBook.screenEmpty(language)
+            }
+        }
+        is ParsedIntent.TypeText -> {
+            val service = AutomationService.instance
+            if (service == null || !AutomationService.hasAccess(context)) {
+                PhraseBook.automationNeeded(language)
+            } else {
+                val ok = runCatching { service.typeText(intent.text) }.getOrDefault(false)
+                PhraseBook.typed(ok, language)
+            }
+        }
+        is ParsedIntent.Scroll -> {
+            val service = AutomationService.instance
+            if (service == null || !AutomationService.hasAccess(context)) {
+                PhraseBook.automationNeeded(language)
+            } else {
+                val ok = runCatching { service.scroll(intent.up) }.getOrDefault(false)
+                PhraseBook.scrolled(intent.up, ok, language)
+            }
+        }
+        is ParsedIntent.TapOn -> {
+            val service = AutomationService.instance
+            if (service == null || !AutomationService.hasAccess(context)) {
+                PhraseBook.automationNeeded(language)
+            } else {
+                val ok = runCatching { service.tapOn(intent.target) }.getOrDefault(false)
+                PhraseBook.tapped(intent.target, ok, language)
+            }
+        }
+        is ParsedIntent.MediaControl -> {
+            val ok = DeviceTools.mediaControl(
+                context,
+                when (intent.action) {
+                    MediaCommand.PLAY_PAUSE -> DeviceTools.MediaAction.PLAY_PAUSE
+                    MediaCommand.NEXT -> DeviceTools.MediaAction.NEXT
+                    MediaCommand.PREVIOUS -> DeviceTools.MediaAction.PREVIOUS
+                },
+            )
+            if (ok) PhraseBook.mediaDone(intent.action, language) else null
+        }
+        is ParsedIntent.TermuxCommand -> when (TermuxBridge.run(context, intent.args)) {
+            TermuxBridge.Result.Sent -> PhraseBook.termuxSent(language)
+            TermuxBridge.Result.TermuxMissing -> PhraseBook.termuxMissing(language)
+            TermuxBridge.Result.PermissionMissing -> PhraseBook.termuxPermission(language)
+            TermuxBridge.Result.Blocked -> PhraseBook.termuxBlocked(language)
+        }
         ParsedIntent.Help -> PhraseBook.help(language)
         ParsedIntent.None -> null
         }
+    }
+
+    /** Runs an accessibility action, or explains how to enable mobile control. */
+    private fun automationAction(language: LanguageMode, action: (AutomationService) -> Boolean): String {
+        val service = AutomationService.instance
+        if (service == null || !AutomationService.hasAccess(context)) {
+            return PhraseBook.automationNeeded(language)
+        }
+        val ok = runCatching { action(service) }.getOrDefault(false)
+        return if (ok) PhraseBook.automationDone(language) else PhraseBook.automationFailed(language)
     }
 
     private fun openDialer(number: String?) {
@@ -405,5 +493,95 @@ object PhraseBook {
         LanguageMode.URDU -> "انٹرنیٹ سروس سے جواب حاصل نہیں ہو سکا۔"
         LanguageMode.ROMAN_URDU -> "Internet service se jawab hasil nahi ho saka."
         LanguageMode.ENGLISH -> "The web service didn't answer. Check your internet and try again."
+    }
+
+    fun automationNeeded(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "موبائل کنٹرول بند ہے۔ سیٹنگز ← پرمیشنز ← موبائل کنٹرول سے آن کریں۔"
+        LanguageMode.ROMAN_URDU -> "Mobile control abhi off hai. Settings → Permissions → Mobile Control se enable karein."
+        LanguageMode.ENGLISH -> "Mobile control is off. Enable it in Settings → Permissions → Mobile Control."
+    }
+
+    fun automationDone(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "ہو گیا۔"
+        LanguageMode.ROMAN_URDU -> "Ho gaya."
+        LanguageMode.ENGLISH -> "Done."
+    }
+
+    fun automationFailed(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "یہ ایکشن اس اسکرین پر ممکن نہیں۔"
+        LanguageMode.ROMAN_URDU -> "Ye action is screen par mumkin nahi."
+        LanguageMode.ENGLISH -> "That action isn't possible on this screen."
+    }
+
+    fun screenHeader(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "اسکرین پر لکھا ہے:"
+        LanguageMode.ROMAN_URDU -> "Screen par likha hai:"
+        LanguageMode.ENGLISH -> "On your screen:"
+    }
+
+    fun screenEmpty(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "اسکرین پر پڑھنے کے قابل کچھ نہیں ملا۔"
+        LanguageMode.ROMAN_URDU -> "Screen par parhne layak kuch nahi mila."
+        LanguageMode.ENGLISH -> "I couldn't find readable text on this screen."
+    }
+
+    fun typed(ok: Boolean, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> if (ok) "ٹائپ کر دیا۔" else "کوئی ٹیکسٹ فیلڈ نہیں ملی۔"
+        LanguageMode.ROMAN_URDU -> if (ok) "Type kar diya." else "Koi text field nahi mili jahan type karoon."
+        LanguageMode.ENGLISH -> if (ok) "Typed it in." else "No text field found to type into."
+    }
+
+    fun tapped(target: String, ok: Boolean, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> if (ok) "\"$target\" پر ٹیپ کر دیا۔" else "\"$target\" اسکرین پر نہیں ملا۔"
+        LanguageMode.ROMAN_URDU -> if (ok) "\"$target\" par tap kar diya." else "\"$target\" screen par nahi mila."
+        LanguageMode.ENGLISH -> if (ok) "Tapped \"$target\"." else "Couldn't find \"$target\" on screen."
+    }
+
+    fun scrolled(up: Boolean, ok: Boolean, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> if (ok) (if (up) "اوپر اسکرول کیا۔" else "نیچے اسکرول کیا۔") else "اسکرول ممکن نہیں۔"
+        LanguageMode.ROMAN_URDU -> if (ok) (if (up) "Scroll up kar diya." else "Scroll down kar diya.") else "Scroll mumkin nahi."
+        LanguageMode.ENGLISH -> if (ok) (if (up) "Scrolled up." else "Scrolled down.") else "Scroll failed."
+    }
+
+    fun mediaDone(action: MediaCommand, lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> when (action) {
+            MediaCommand.PLAY_PAUSE -> "میڈیا پلے/پاز کیا۔"
+            MediaCommand.NEXT -> "اگلا ٹریک۔"
+            MediaCommand.PREVIOUS -> "پچھلا ٹریک۔"
+        }
+        LanguageMode.ROMAN_URDU -> when (action) {
+            MediaCommand.PLAY_PAUSE -> "Media play/pause kar diya."
+            MediaCommand.NEXT -> "Agla track chala diya."
+            MediaCommand.PREVIOUS -> "Pichla track chala diya."
+        }
+        LanguageMode.ENGLISH -> when (action) {
+            MediaCommand.PLAY_PAUSE -> "Media play/pause toggled."
+            MediaCommand.NEXT -> "Skipped to the next track."
+            MediaCommand.PREVIOUS -> "Went to the previous track."
+        }
+    }
+
+    fun termuxSent(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "ٹرمکس کو کمانڈ بھیج دی۔"
+        LanguageMode.ROMAN_URDU -> "Termux ko command bhej di."
+        LanguageMode.ENGLISH -> "Command forwarded to Termux."
+    }
+
+    fun termuxMissing(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "ٹرمکس ایپ انسٹال نہیں ہے۔ F-Droid سے Termux اور Termux:API انسٹال کریں۔"
+        LanguageMode.ROMAN_URDU -> "Termux app install nahi hai. F-Droid se Termux aur Termux:API install karein."
+        LanguageMode.ENGLISH -> "Termux isn't installed. Install Termux and Termux:API from F-Droid."
+    }
+
+    fun termuxPermission(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "ٹرمکس کی RUN_COMMAND اجازت نہیں ہے۔ سیٹنگز ← پرمیشنز میں دیں۔"
+        LanguageMode.ROMAN_URDU -> "Termux ki RUN_COMMAND ijazat nahi hai. Settings → Permissions mein grant karein."
+        LanguageMode.ENGLISH -> "The Termux RUN_COMMAND permission isn't granted. Enable it in Settings → Permissions."
+    }
+
+    fun termuxBlocked(lang: LanguageMode) = when (lang) {
+        LanguageMode.URDU -> "یہ ٹرمکس کمانڈ اجازت شدہ نہیں۔ صرف محفوظ termux-api کمانڈز چلتی ہیں۔"
+        LanguageMode.ROMAN_URDU -> "Ye Termux command allow nahi hai. Sirf safe termux-api commands chalti hain."
+        LanguageMode.ENGLISH -> "That Termux command isn't on the safe allow-list. Only read-only termux-api tools run."
     }
 }

@@ -130,6 +130,21 @@ fun SettingsScreen(
             value = settings.cricketApiKey,
             onValueChange = viewModel::setCricketApiKey,
         )
+        LabeledTextField(
+            label = "Tavily key (optional — free at tavily.com, deep search)",
+            value = settings.tavilyApiKey,
+            onValueChange = viewModel::setTavilyApiKey,
+        )
+        LabeledTextField(
+            label = "Windy key (optional — free at windy.com/api, forecasts)",
+            value = settings.windyApiKey,
+            onValueChange = viewModel::setWindyApiKey,
+        )
+        LabeledTextField(
+            label = "Geoapify key (optional — free at geoapify.com, places)",
+            value = settings.geoapifyApiKey,
+            onValueChange = viewModel::setGeoapifyApiKey,
+        )
 
         SectionTitle("Personality")
         LabeledTextField(

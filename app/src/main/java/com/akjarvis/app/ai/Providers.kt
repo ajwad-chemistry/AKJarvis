@@ -43,6 +43,13 @@ enum class AiProvider(
         ProviderKind.OPENAI_COMPATIBLE,
         "Models ending in :free are free",
     ),
+    OMNI_ROUTER(
+        "Omni Router",
+        "https://omnirouters.com/v1/",
+        "auto",
+        ProviderKind.OPENAI_COMPATIBLE,
+        "Unified AI gateway — edit base URL/model to match your OmniRouter account",
+    ),
     ANTHROPIC(
         "Claude (Anthropic)",
         "https://api.anthropic.com/v1/",

@@ -13,6 +13,8 @@ Every permission below is requested **in context, only when you use the related 
 | `RECEIVE_BOOT_COMPLETED` | Normal | Re-arms your reminders after reboot | Reminders need to be re-created after reboot |
 | Notification Listener access | **Special, opt-in** | Reading notification titles/text when you ask "read my notifications" | That command reports "no access"; everything else works |
 | Package visibility (`queries`) | Normal | Listing launchable apps for "open \<app\>" | App launching by name is limited |
+| Accessibility (Mobile control) | **Special, opt-in** | Advanced commands: back, home, recents, notification shade, scroll, tap, type, read screen. Acts only on your explicit command; password fields are never read | Mobile control replies with enable instructions; everything else works |
+| `com.termux.permission.RUN_COMMAND` | **Opt-in** (only if you install Termux) | Forwarding a safe allow-list of termux-api commands to the Termux app | Termux commands report "not granted"; nothing else changes |
 
 ## What the app will NEVER do
 
@@ -27,3 +29,4 @@ Every permission below is requested **in context, only when you use the related 
 2. **In Android:** Settings → Apps → AK Jarvis → Permissions.
 3. **Notification listener:** Settings → Notification access (or the button in the app).
 4. **Wake word:** toggle it off in Settings → Voice; the foreground service stops immediately.
+5. **Mobile control (accessibility):** Settings → Accessibility → AK Jarvis Mobile Control → off (or the button in the app). Turning it off instantly disables back/home/tap/type/scroll/read-screen commands.

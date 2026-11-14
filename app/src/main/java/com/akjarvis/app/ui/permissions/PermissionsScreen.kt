@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.akjarvis.app.device.AutomationService
 import com.akjarvis.app.device.NotificationListener
 
 private data class PermissionStatuses(
@@ -45,6 +46,7 @@ private data class PermissionStatuses(
     val exactAlarms: Boolean,
     val notificationAccess: Boolean,
     val contacts: Boolean,
+    val accessibility: Boolean,
 )
 
 private fun readStatuses(context: Context): PermissionStatuses {
@@ -59,7 +61,12 @@ private fun readStatuses(context: Context): PermissionStatuses {
     }
     val contacts = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) ==
         PackageManager.PERMISSION_GRANTED
-    return PermissionStatuses(mic, notifications, exact, NotificationListener.hasAccess(context), contacts)
+    return PermissionStatuses(
+        mic, notifications, exact,
+        NotificationListener.hasAccess(context),
+        contacts,
+        AutomationService.hasAccess(context),
+    )
 }
 
 /**
@@ -153,6 +160,16 @@ fun PermissionsScreen(onBack: () -> Unit) {
             description = "Optional. Only used to find a phone number when you say \"mama ko call karo\". The dialer still opens — nothing is called automatically.",
             granted = statuses.contacts,
             onAction = { contactsLauncher.launch(Manifest.permission.READ_CONTACTS) },
+        )
+        PermissionRow(
+            title = "Mobile control (accessibility)",
+            description = "Optional. Advanced control: back, home, recents, scroll, tap, type, read screen. Works only after you enable it in system settings, and only when you give a command. Password fields are never read.",
+            granted = statuses.accessibility,
+            onAction = {
+                runCatching {
+                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+            },
         )
         Text(
             text = "Nothing is recorded, uploaded or shared. Revoking a permission immediately disables the related feature.",

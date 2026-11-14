@@ -8,6 +8,7 @@ import android.content.Intent
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.AudioManager
+import android.view.KeyEvent
 import android.os.BatteryManager
 import android.os.Build
 import android.os.VibrationEffect
@@ -147,6 +148,23 @@ object DeviceTools {
             null
         }.getOrNull()
     }
+
+    // ---- Media transport (play/pause/next/previous via official media key events) ----
+
+    enum class MediaAction { PLAY_PAUSE, NEXT, PREVIOUS }
+
+    /** @return true when a media session received the key event. */
+    fun mediaControl(context: Context, action: MediaAction): Boolean = runCatching {
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return false
+        val keyCode = when (action) {
+            MediaAction.PLAY_PAUSE -> KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE
+            MediaAction.NEXT -> KeyEvent.KEYCODE_MEDIA_NEXT
+            MediaAction.PREVIOUS -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
+        }
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, keyCode))
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, keyCode))
+        true
+    }.getOrDefault(false)
 
     // ---- Haptic feedback (used to confirm voice commands) ------------------
 

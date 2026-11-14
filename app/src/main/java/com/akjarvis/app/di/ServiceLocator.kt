@@ -46,6 +46,9 @@ object ServiceLocator {
         DeviceActionExecutor(
             appContext, appLauncher, remindersRepository, notesRepository, memoryRepository,
             cricketApiKeyProvider = { settingsRepository.settings.first().cricketApiKey },
+            tavilyApiKeyProvider = { settingsRepository.settings.first().tavilyApiKey },
+            windyApiKeyProvider = { settingsRepository.settings.first().windyApiKey },
+            geoapifyApiKeyProvider = { settingsRepository.settings.first().geoapifyApiKey },
         )
     }
     val memoryRepository by lazy { MemoryRepository(appContext) }

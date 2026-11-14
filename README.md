@@ -1,6 +1,10 @@
-# AK Jarvis 🤖
+# 🤖 AK Jarvis
 
-A native Android AI assistant with a hybrid **Cloud + Local/Offline** architecture, built with Kotlin and Jetpack Compose.
+> **Your personal AI assistant for Android — talk to it in English, اردو or Roman Urdu, and it chats, answers, reminds, controls your phone and looks things up on the web.**
+
+A native Android AI assistant with a hybrid **Cloud + Offline** architecture, built with Kotlin and Jetpack Compose. 100% free tools and free-tier APIs — no subscriptions, no ads, no tracking.
+
+`Android 8.0+` · `Kotlin 2.0` · `Jetpack Compose` · `Room` · `DataStore` · `56 unit tests` · `APK in /releases`
 
 | | |
 |---|---|
@@ -33,6 +37,12 @@ A native Android AI assistant with a hybrid **Cloud + Local/Offline** architectu
 - 🧩 **Multi-commands** — "torch on karo aur volume up" runs both tasks in one message
 - 🛑 **STOP button** — instantly cancels a running answer, speech or listening session
 - 📇 **Contact-name calling** — "mama ko call karo" (opt-in Contacts permission; dialer opens, you confirm)
+- 🦾 **Advanced mobile control** (opt-in accessibility) — "go back", "go home", "recent apps", "notification panel kholo", "scroll down", "tap on settings", "type hello", "screen parho"
+- ⏸ **Media keys by voice** — "gaana chalao", "pause", "next song", "pichla track"
+- 🖥 **Termux bridge** (optional) — forwards a safe allow-list of termux-api commands (battery status, toast, tts, vibrate…) to the Termux app
+- 🔎 **Tavily deep search** — AI-optimized web search with sources (free key from tavily.com)
+- 🌬 **Windy point forecasts** — wind/temp/precipitation for any city (free key from windy.com)
+- 📍 **Nearby places (OpenStreetMap)** — "qareeb restaurant", "nearby atm" via free Overpass API, upgraded geocoding with Geoapify (free key)
 - 🏭 **Iron Man theme** — hot-rod red & gold dark mode, plus dark/light/system
 - ⬆ **In-app update checker** — reads update.json from this repo and tells you when a new version is out
 - 🛡 **Privacy-first**: no analytics, no tracking, API keys stay on-device and out of backups
@@ -58,6 +68,8 @@ app/src/main/java/com/akjarvis/app/
 │   ├── AppLauncher.kt        # App list + fuzzy launch
 │   ├── DeviceActionExecutor.kt # Executes commands, safety rules
 │   ├── NotificationListener.kt # Opt-in notification reading
+│   ├── AutomationService.kt  # Opt-in accessibility: back/home/tap/type/scroll/read
+│   ├── TermuxBridge.kt      # Safe allow-listed Termux:API bridge
 │   ├── Reminders.kt          # AlarmManager + receivers
 │   └── FileManager.kt        # SAF helpers
 ├── domain/
@@ -98,10 +110,11 @@ Or from the command line — see [docs/BUILDING.md](docs/BUILDING.md).
    | Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-2.0-flash` | Free tier (AI Studio key) |
    | Groq | `https://api.groq.com/openai/v1/` | `llama-3.3-70b-versatile` | Free tier |
    | OpenRouter | `https://openrouter.ai/api/v1/` | `meta-llama/llama-3.3-70b-instruct:free` | `:free` models are free |
+   | OmniRouter | `https://omnirouters.com/v1/` | `auto` | Unified AI gateway — edit base URL/model to match your account |
    | Claude (Anthropic) | `https://api.anthropic.com/v1/` | `claude-3-5-haiku-latest` | Paid API |
    | Custom | your endpoint | your model | Any OpenAI-compatible API |
 
-2. Get a key from that provider's console, paste it in **Cloud AI configuration**. Cricket scores additionally accept a free [CricAPI](https://cricapi.com) key (optional).
+2. Get a key from that provider's console, paste it in **Cloud AI configuration**. Optional free keys for extra skills: [CricAPI](https://cricapi.com) (cricket), [Tavily](https://tavily.com) (deep search), [Windy](https://www.windy.com/api) (forecasts), [Geoapify](https://www.geoapify.com) (places) — all in Settings. Nearby places and 30+ other web skills work with **no key at all** (OpenStreetMap/Overpass).
 3. Base URL and model are pre-filled per provider but always editable (model IDs change over time — update them here without reinstalling).
 4. Done — OpenAI-compatible providers use `{base-url}chat/completions`; Claude uses the native `messages` API.
 

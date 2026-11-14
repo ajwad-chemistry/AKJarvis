@@ -22,6 +22,9 @@ data class AppSettings(
     val provider: AiProvider = AiProvider.Z_AI,
     val apiKey: String = "",
     val cricketApiKey: String = "",
+    val tavilyApiKey: String = "",
+    val windyApiKey: String = "",
+    val geoapifyApiKey: String = "",
     val apiBaseUrl: String = DEFAULT_BASE_URL,
     val model: String = DEFAULT_MODEL,
     val theme: ThemeMode = ThemeMode.SYSTEM,
@@ -51,6 +54,9 @@ class SettingsRepository(private val context: Context) {
         val PROVIDER = stringPreferencesKey("provider")
         val API_KEY = stringPreferencesKey("api_key")
         val CRICKET_API_KEY = stringPreferencesKey("cricket_api_key")
+        val TAVILY_API_KEY = stringPreferencesKey("tavily_api_key")
+        val WINDY_API_KEY = stringPreferencesKey("windy_api_key")
+        val GEOAPIFY_API_KEY = stringPreferencesKey("geoapify_api_key")
         val API_BASE_URL = stringPreferencesKey("api_base_url")
         val MODEL = stringPreferencesKey("model")
         val THEME = stringPreferencesKey("theme")
@@ -72,6 +78,9 @@ class SettingsRepository(private val context: Context) {
         } ?: AiProvider.Z_AI,
             apiKey = p[Keys.API_KEY] ?: "",
             cricketApiKey = p[Keys.CRICKET_API_KEY] ?: "",
+            tavilyApiKey = p[Keys.TAVILY_API_KEY] ?: "",
+            windyApiKey = p[Keys.WINDY_API_KEY] ?: "",
+            geoapifyApiKey = p[Keys.GEOAPIFY_API_KEY] ?: "",
             apiBaseUrl = (p[Keys.API_BASE_URL]?.takeIf { it.isNotBlank() }) ?: AppSettings.DEFAULT_BASE_URL,
             model = (p[Keys.MODEL]?.takeIf { it.isNotBlank() }) ?: AppSettings.DEFAULT_MODEL,
             theme = p[Keys.THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM,
@@ -101,6 +110,9 @@ class SettingsRepository(private val context: Context) {
     }
     suspend fun setApiKey(key: String) = edit { it[Keys.API_KEY] = key.trim() }
     suspend fun setCricketApiKey(key: String) = edit { it[Keys.CRICKET_API_KEY] = key.trim() }
+    suspend fun setTavilyApiKey(key: String) = edit { it[Keys.TAVILY_API_KEY] = key.trim() }
+    suspend fun setWindyApiKey(key: String) = edit { it[Keys.WINDY_API_KEY] = key.trim() }
+    suspend fun setGeoapifyApiKey(key: String) = edit { it[Keys.GEOAPIFY_API_KEY] = key.trim() }
     suspend fun setApiBaseUrl(url: String) = edit { it[Keys.API_BASE_URL] = url.trim() }
     suspend fun setModel(model: String) = edit { it[Keys.MODEL] = model.trim() }
     suspend fun setTheme(theme: ThemeMode) = edit { it[Keys.THEME] = theme.name }

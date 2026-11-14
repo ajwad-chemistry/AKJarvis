@@ -27,12 +27,26 @@ sealed interface ParsedIntent {
     data object RecallMemory : ParsedIntent
     /** A free web API lookup; kind is one of [com.akjarvis.app.data.web.WebTools] kinds. */
     data class WebQuery(val kind: String, val query: String) : ParsedIntent
+    // Advanced mobile control (requires the user to enable Accessibility access)
+    data object GoBack : ParsedIntent
+    data object GoHome : ParsedIntent
+    data object OpenRecents : ParsedIntent
+    data object OpenNotificationShade : ParsedIntent
+    data object ReadScreen : ParsedIntent
+    data class TypeText(val text: String) : ParsedIntent
+    data class Scroll(val up: Boolean) : ParsedIntent
+    data class TapOn(val target: String) : ParsedIntent
+    data class MediaControl(val action: MediaCommand) : ParsedIntent
+    data class TermuxCommand(val args: List<String>) : ParsedIntent
     data object Help : ParsedIntent
     data object None : ParsedIntent
 }
 
 /** Direction for volume commands parsed from speech. */
 enum class VolumeDirection { UP, DOWN, MUTE, UNMUTE }
+
+/** Media transport command parsed from speech. */
+enum class MediaCommand { PLAY_PAUSE, NEXT, PREVIOUS }
 
 /**
  * Lightweight on-device command parser for English, Roman Urdu and Urdu.
@@ -50,8 +64,10 @@ class IntentRouter {
         parseReminder(input)?.let { return it }
         parseNote(text)?.let { return it }
         parseSearch(text)?.let { return it }
+        parseKeyedWeb(text)?.let { return it }
         parseSms(text)?.let { return it }
         parseDial(text)?.let { return it }
+        parseAutomation(text)?.let { return it }
         parseOpen(text)?.let { return it }
         parseDeviceTools(text)?.let { return it }
         parseWeb(text)?.let { return it }
@@ -220,6 +236,74 @@ class IntentRouter {
         }
         if (Regex("\\b(what do you remember|kya yaad hai|meri baatein)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
             return ParsedIntent.RecallMemory
+        }
+        return null
+    }
+
+    /**
+     * Advanced mobile control commands. These need the (opt-in) accessibility
+     * service; the executor replies with an enable-instructions message when
+     * it is switched off, so nothing happens silently.
+     */
+    private fun parseAutomation(text: String): ParsedIntent? {
+        // Media transport: "play music", "gaana chalao", "next song", "pause"
+        if (Regex("\\b(?:play|pause|chalao|bajao|music|gaana|gana|song)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) &&
+            !text.contains("youtube") && !text.contains("search")
+        ) {
+            val action = when {
+                Regex("\\b(?:next|agla|agli|skip|aage)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> MediaCommand.NEXT
+                Regex("\\b(?:previous|pichla|pichay|peechay)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text) -> MediaCommand.PREVIOUS
+                else -> MediaCommand.PLAY_PAUSE
+            }
+            return ParsedIntent.MediaControl(action)
+        }
+        if (Regex("\\b(?:go back|back jao|back karo|wapas jao|wapis jao|peeche jao|peechay jao|press back)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.GoBack
+        }
+        if (Regex("\\b(?:go home|home screen|homescreen|home par|home pe)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.GoHome
+        }
+        if (Regex("\\b(?:recent apps|recents)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.OpenRecents
+        }
+        if (Regex("\\b(?:notification panel|notification shade|panel kholo|status bar)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.OpenNotificationShade
+        }
+        if (Regex("\\b(?:read\\s+(?:the\\s+|my\\s+)?screen|screen parho|screen padho|screen padh|whats on my screen|what's on my screen|screen kya)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.ReadScreen
+        }
+        Regex("\\b(?:type|type karo|likho)\\s+(.+)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val body = m.groupValues[1].trim().trim('.', '!', '?')
+            if (body.isNotBlank()) return ParsedIntent.TypeText(body)
+        }
+        if (Regex("\\bscroll\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            val up = Regex("\\b(?:up|upar|above|top)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+            return ParsedIntent.Scroll(up)
+        }
+        Regex("\\b(?:tap on|click on|tap|click|press)\\s+(.+)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val target = m.groupValues[1].trim().trim('.', '!', '?')
+            if (target.isNotBlank()) return ParsedIntent.TapOn(target)
+        }
+        Regex("\\btermux\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let { m ->
+            val args = m.groupValues[1].trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+            return ParsedIntent.TermuxCommand(args)
+        }
+        return null
+    }
+
+    /**
+     * Keyed web tools parsed early so words like "phone" inside a Tavily query
+     * are never mistaken for a call command.
+     */
+    private fun parseKeyedWeb(text: String): ParsedIntent? {
+        Regex("\\btavily\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("TAVILY", it.groupValues[1].trim())
+        }
+        Regex("\\bwindy\\b\\s*(.*)", RegexOption.IGNORE_CASE).find(text)?.let {
+            return ParsedIntent.WebQuery("WINDY", it.groupValues[1].trim().ifBlank { text })
+        }
+        if (Regex("\\b(?:nearby|near me|near by|qareeb|qareebi)\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)) {
+            return ParsedIntent.WebQuery("NEARBY", text)
         }
         return null
     }
