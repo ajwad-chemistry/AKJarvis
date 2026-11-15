@@ -6,6 +6,10 @@ A native Android AI assistant with a hybrid **Cloud + Offline** architecture, bu
 
 `Android 8.0+` · `Kotlin 2.0` · `Jetpack Compose` · `Room` · `DataStore` · `56 unit tests` · `APK in /releases`
 
+![AK Jarvis UI preview](docs/preview/ui-preview-dark.png)
+
+*Design: "Liquid Glass" Slate + Indigo system, adapted from the [AbuZar-Ansarii/Jarvis](https://github.com/AbuZar-Ansarii/Jarvis) app. Preview above is a design mockup; the Iron Man theme is still available in Settings.*
+
 | | |
 |---|---|
 | **Platform** | Android 8.0+ (API 26), optimized for 6 GB RAM devices |

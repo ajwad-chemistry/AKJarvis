@@ -13,12 +13,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -30,7 +33,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +59,15 @@ import com.akjarvis.app.ui.components.AssistantOrb
 import com.akjarvis.app.ui.components.MessageBubble
 import com.akjarvis.app.ui.components.TypingDots
 import com.akjarvis.app.ui.components.VoiceIndicator
+
+private data class Suggestion(val label: String, val command: String)
+
+private val suggestions = listOf(
+    Suggestion("🐥 “Open WhatsApp”", "Open WhatsApp"),
+    Suggestion("⏰ “Remind me in 10 minutes to stretch”", "Remind me in 10 minutes to stretch"),
+    Suggestion("🌍 “Weather in Karachi”", "weather in Karachi"),
+    Suggestion("📝 “Note: buy milk”", "Note: buy milk"),
+)
 
 @Composable
 fun ChatScreen(
@@ -227,11 +242,28 @@ fun ChatScreen(
         ) {
             if (messages.isEmpty()) {
                 item {
-                    Text(
-                        text = "Say hello, or try:\n• \"Open WhatsApp\"\n• \"Remind me in 10 minutes to stretch\"\n• \"Note: buy milk\"\n• \"Search for weather in Karachi\"",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        suggestions.forEach { suggestion ->
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                                ),
+                                onClick = { viewModel.send(suggestion.command) },
+                            ) {
+                                Text(
+                                    text = suggestion.label,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                )
+                            }
+                        }
+                    }
                 }
             }
             items(messages, key = { it.id }) { message ->
@@ -256,10 +288,16 @@ fun ChatScreen(
                 modifier = Modifier.weight(1f),
                 placeholder = { Text("Ask me anything…") },
                 maxLines = 4,
-                shape = MaterialTheme.shapes.large,
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
             )
             Spacer(Modifier.width(8.dp))
-            IconButton(
+            FilledIconButton(
                 onClick = {
                     val granted = ContextCompat.checkSelfPermission(
                         context, Manifest.permission.RECORD_AUDIO
@@ -267,22 +305,34 @@ fun ChatScreen(
                     if (granted) viewModel.startVoice()
                     else micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 },
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (assistantState == AssistantState.LISTENING) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f)
+                    },
+                    contentColor = MaterialTheme.colorScheme.primary,
+                ),
             ) {
-                Icon(
-                    Icons.Filled.Mic,
-                    contentDescription = "Microphone",
-                    tint = if (assistantState == AssistantState.LISTENING) MaterialTheme.colorScheme.tertiary
-                    else MaterialTheme.colorScheme.primary,
-                )
+                Icon(Icons.Filled.Mic, contentDescription = "Microphone")
             }
-            IconButton(
+            Spacer(Modifier.width(6.dp))
+            FilledIconButton(
                 onClick = {
                     viewModel.send(input)
                     input = ""
                 },
                 enabled = input.isNotBlank(),
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
             ) {
-                Icon(Icons.Filled.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Send, contentDescription = "Send")
             }
         }
     }

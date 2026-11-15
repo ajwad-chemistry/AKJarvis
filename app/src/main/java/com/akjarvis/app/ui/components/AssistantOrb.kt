@@ -19,10 +19,10 @@ import androidx.compose.ui.unit.dp
 import com.akjarvis.app.domain.model.AssistantState
 
 private fun stateColor(state: AssistantState): Color = when (state) {
-    AssistantState.IDLE -> Color(0xFF22D3EE)
-    AssistantState.LISTENING -> Color(0xFF34D399)
-    AssistantState.THINKING -> Color(0xFF8B5CF6)
-    AssistantState.SPEAKING -> Color(0xFF60A5FA)
+    AssistantState.IDLE -> Color(0xFF6366F1)
+    AssistantState.LISTENING -> Color(0xFF22C55E)
+    AssistantState.THINKING -> Color(0xFF818CF8)
+    AssistantState.SPEAKING -> Color(0xFFA5B4FC)
 }
 
 /**

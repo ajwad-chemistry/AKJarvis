@@ -11,8 +11,8 @@ import kotlinx.coroutines.withContext
 object UpdateChecker {
 
     /** Keep in sync with versionCode/versionName in app/build.gradle.kts. */
-    const val CURRENT_VERSION = "1.3.0"
-    const val CURRENT_CODE = 4
+    const val CURRENT_VERSION = "1.4.0"
+    const val CURRENT_CODE = 5
 
     private const val URL =
         "https://raw.githubusercontent.com/ajwad-chemistry/AKJarvis/main/update.json"

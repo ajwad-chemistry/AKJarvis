@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "1.3.0",
-  "apkUrl": "https://github.com/ajwad-chemistry/AKJarvis/raw/main/releases/AKJarvis-v1.3.0-debug.apk",
-  "notes": "New AI provider OmniRouter, Tavily deep search, Windy forecasts, OpenStreetMap nearby places, Geoapify geocoding, Termux bridge, and advanced mobile control (back, home, recents, scroll, tap, type, read screen, media keys)."
+  "versionCode": 5,
+  "versionName": "1.4.0",
+  "apkUrl": "https://github.com/ajwad-chemistry/AKJarvis/raw/main/releases/AKJarvis-v1.4.0-debug.apk",
+  "notes": "New Liquid Glass UI (Slate + Indigo design from the AbuZar Jarvis repo): gradient chat bubbles, glassy suggestion cards, rounded input bar, circular mic/send buttons, refreshed orb colors."
 }
