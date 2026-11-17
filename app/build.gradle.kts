@@ -22,6 +22,9 @@ android {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Signed with the debug key so the APK is directly installable
+            // for personal sideloading (no upload keystore in this repo).
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
